@@ -40,6 +40,8 @@ Usage:
 
 import os
 import sys
+from pathlib import Path as _Path
+sys.path.insert(0, str(_Path(__file__).resolve().parents[2]))
 import csv
 import json
 import argparse
