@@ -1,0 +1,15 @@
+source_type: primitive
+n_episodes: 2000
+max_steps: 200
+seed: 60000
+allow_post_landing: true
+physics_sampling:
+  profile: gym-default
+
+maneuver:
+  type: ground_thrust_sweep
+  main: [0.0, 1.0]
+
+start:
+  mode: replay_to_landing
+  source_dir: /media/hdd1/physics-priors-latent-space/lunar-lander-data/world_model_data/gym-default/gym-default-heuristic

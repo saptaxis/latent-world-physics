@@ -1,0 +1,18 @@
+# Reverse OOD: medium-trained labeled vs blind evaluated on easy profile.
+experiment: ood-medium-on-easy
+description: "Medium-trained agents evaluated on easy physics profile (reverse OOD)"
+output_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/analysis/cross-config/ood-medium-on-easy
+
+comparisons:
+  full-variation-medium-trained-on-easy:
+    condition: full-variation
+    profile: easy
+    configs:
+      labeled:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/full-variation/labeled-ppo-medium-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+        trajectory_subdir: trajectories-ood-easy
+      blind:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/full-variation/blind-ppo-medium-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+        trajectory_subdir: trajectories-ood-easy

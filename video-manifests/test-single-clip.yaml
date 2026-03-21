@@ -1,0 +1,31 @@
+# Test manifest for clipcompose — single clip atom.
+# Uses a real clip from Article 1 grid1 (labeled agent, episode 14).
+
+video:
+  resolution: [1920, 1080]
+  fps: 30
+  background: "#1A1A1A"
+
+paths:
+  videos: "/media/hdd1/physics-priors-latent-space/lunar-lander-networks/articles/01-what-do-agents-learn/videos"
+
+colors:
+  text: "#D5D5D3"
+  text_secondary: "#888888"
+  accent: "#B1134D"
+  landed: "#50DC78"
+  crashed: "#F04646"
+
+sections:
+  - template: single_clip
+    header: "Episode 14: Labeled Agent in Low Gravity"
+    subtitle: "Smooth descent with high thrust autocorrelation"
+    clip:
+      path: "${videos}/grid1/rendered-labeled/episode_0014.mp4"
+      annotation_side: left
+      annotations:
+        - text: "LANDED"
+          color: "#50DC78"
+          weight: bold
+        - text: "g=-4.4"
+        - text: "autocorr=1.00"

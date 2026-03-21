@@ -1,0 +1,13 @@
+# History agent + PPO on medium with 2x64 net, entropy bonus REMOVED.
+# labeled: 88%, blind: 95%. Both strong here — the noent 2x64 sweet spot.
+variant: history
+algo: ppo
+profile: medium
+total_steps: 4_000_000
+video_freq: 250_000
+run_dir: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/full-variation/history-ppo-medium-small-noent
+n_envs: 8
+ent_coef: 0.0
+history_k: 8
+
+net_arch: [64, 64]

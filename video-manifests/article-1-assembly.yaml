@@ -1,0 +1,48 @@
+# Article 1: Assembly manifest — merges rendered sections in time.
+#
+# Set "renders" path to wherever --render-all exported the section mp4s.
+# Filenames use section labels from the landscape manifest.
+
+video:
+  fps: 30
+  transition: 1.5
+  transition_type: fade_to_black
+
+paths:
+  renders: "/home/vsr/Desktop/clipcompose-tests/article1"
+
+sections:
+  - path: "${renders}/section-00-intro.mp4"
+    transition: 1.5
+    transition_type: fade_to_black
+  - path: "${renders}/section-01-demo-gravity.mp4"
+    transition: 0
+    transition_type: crossfade
+  - path: "${renders}/section-02-demo-wind.mp4"
+    transition: 0
+    transition_type: crossfade
+  - path: "${renders}/section-03-demo-turbulence.mp4"
+    transition: 0
+    transition_type: crossfade
+  - path: "${renders}/section-04-demo-angular-damping.mp4"
+    transition: 0
+    transition_type: crossfade
+  - path: "${renders}/section-05-demo-engine-power.mp4"
+    transition: 1.5
+    transition_type: fade_to_black
+  - path: "${renders}/section-06-two-strategies.mp4"
+    transition: 1.5
+    transition_type: fade_to_black
+  - path: "${renders}/section-07-parametric-trap.mp4"
+    transition: 1.5
+    transition_type: fade_to_black
+  - path: "${renders}/section-08-body-vs-world.mp4"
+    transition: 1.5
+    transition_type: fade_to_black
+  - path: "${renders}/section-09-noise-cliff.mp4"
+    transition: 1.5
+    transition_type: fade_to_black
+  - path: "${renders}/section-10-out-of-distribution.mp4"
+    transition: 1.5
+    transition_type: fade_to_black
+  - path: "${renders}/section-11-outro.mp4"

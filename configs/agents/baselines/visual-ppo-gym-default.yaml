@@ -1,0 +1,32 @@
+# Visual-blind agent + PPO on fixed Gymnasium default physics.
+# Baseline verification: does the CNN learn to land from pixels?
+#
+# PPO hyperparams from RL Zoo Atari preset — tuned for CNN feature extraction.
+# Key difference from state-vector: much smaller rollout buffer (128 vs 1024)
+# and larger batch size (256 vs 64) → 16 gradient steps per update instead of
+# 512. This prevents KL explosion and entropy collapse in CNN training.
+#
+# MLP head matches Expt 1's winning config (2x128, ent_coef=0.001)
+# so the comparison is fair — same policy capacity after the encoder.
+variant: visual
+algo: ppo
+profile: gym-default
+total_steps: 5_000_000
+n_stack: 4
+video_freq: 500_000
+early_stop_landed_pct: 90.0
+early_stop_patience: 5
+n_envs: 8
+
+# --- PPO hyperparams (RL Zoo Atari-style for CNN) ---
+learning_rate: 2.5e-4
+n_steps: 128
+batch_size: 256
+n_epochs: 4
+gamma: 0.99
+gae_lambda: 0.95
+clip_range: 0.1
+ent_coef: 0.01
+
+# 2x128 MLP head after CNN features — matches Expt 1 state-vector agents.
+net_arch: [128, 128]

@@ -1,0 +1,16 @@
+# Labeled agent + PPO with RL Zoo default network (2x64).
+# Baseline comparison against our 3x256 research network.
+# Easy profile = domain randomization with gentle parameter ranges.
+variant: labeled
+algo: ppo
+profile: easy
+total_steps: 3_000_000
+video_freq: 250_000
+early_stop_landed_pct: 95.0
+early_stop_patience: 4
+run_dir: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/labeled-ppo-easy-small-Feb122026
+n_envs: 8
+
+# RL Zoo default: 2 hidden layers of 64 units (shared actor/critic).
+# Our default is 3x256 — ~25x more parameters.
+net_arch: [64, 64]

@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "latent-world-physics"
+version = "0.1.0"
+description = "Studying what neural networks learn about physics: world model ladder, RL agents, evaluation framework."
+requires-python = ">=3.10"
+license = {text = "MIT"}
+dependencies = [
+    "parametric-lunar-lander",
+    "torch>=2.0",
+    "numpy>=1.24",
+    "stable-baselines3>=2.0.0",
+    "tensorboard>=2.14",
+    "scipy>=1.10.0",
+    "pandas>=2.0.0",
+    "matplotlib>=3.7",
+    "pyyaml>=6.0",
+    "imageio[ffmpeg]>=2.31.0",
+    "Pillow>=10.0.0",
+    "opencv-python-headless>=4.8.0",
+    "scikit-learn>=1.3.0",
+    "tqdm",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+
+[tool.setuptools.packages.find]
+include = ["lwp*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

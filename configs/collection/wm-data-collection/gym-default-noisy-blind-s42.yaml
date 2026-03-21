@@ -1,0 +1,21 @@
+# World model data collection: noisy expert from blind agent seed 42 (gym-default, 128-lowent)
+# Adds action noise to expand state-action coverage beyond deterministic policy.
+# Part of gym-default dataset (noisy-blind contributes 5K total: 2 seeds × 2500)
+
+source_type: noisy_expert
+checkpoint_dir: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/gym-default/blind-ppo-gym-default-128-lowent/s42
+n_episodes: 2500
+seed: 0
+deterministic: true
+save_frames: false
+noise_sigma: [0.01, 0.5]
+
+physics_sampling:
+  ranges:
+    gravity: [-10.0, -10.0]
+    main_engine_power: [13.0, 13.0]
+    side_engine_power: [0.6, 0.6]
+    lander_density: [5.0, 5.0]
+    angular_damping: [0.0, 0.0]
+    wind_power: [15.0, 15.0]
+    turbulence_power: [1.5, 1.5]

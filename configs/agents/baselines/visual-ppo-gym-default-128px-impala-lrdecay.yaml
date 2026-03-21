@@ -1,0 +1,29 @@
+# Visual-blind agent + PPO on fixed Gymnasium default physics.
+# 128x128 frames, IMPALA ResNet backbone, linear LR decay.
+# Previous run (constant 2.5e-4) hit 95% landed then collapsed to 10%.
+# Fix: linear decay from 2.5e-4 to 0 over 10M steps.
+variant: visual
+algo: ppo
+profile: gym-default
+total_steps: 10_000_000
+n_stack: 4
+frame_size: 128
+cnn_backbone: impala
+video_freq: 500_000
+early_stop_landed_pct: 95.0
+early_stop_patience: 5
+n_envs: 8
+
+# --- PPO hyperparams ---
+learning_rate: 2.5e-4
+lr_schedule: linear          # decay to 0 over total_steps
+n_steps: 128
+batch_size: 256
+n_epochs: 4
+gamma: 0.99
+gae_lambda: 0.95
+clip_range: 0.1
+ent_coef: 0.01
+
+# 2x128 MLP head after CNN features — matches Expt 1 state-vector agents.
+net_arch: [128, 128]

@@ -1,0 +1,7 @@
+# Blind agent + SAC: no physics params (15D obs).
+variant: blind
+algo: sac
+profile: easy
+total_steps: 3_000_000
+video_freq: 500_000
+run_dir: runs/lunar_lander/blind-sac

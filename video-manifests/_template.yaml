@@ -1,0 +1,223 @@
+# Video composition manifest template.
+# Defines sections rendered spatially by clipcompose.
+#
+# Usage:
+#   clipcompose compose \
+#       --manifest lunar_lander/video-manifests/my-manifest.yaml \
+#       --output /tmp/renders/ --render-all --workers 3
+#
+# Each section uses a template that determines its spatial layout.
+# Sections are rendered independently — use an assembly manifest
+# to merge them into a single video with transitions.
+
+video:
+  resolution: [1920, 1080]   # [width, height] in pixels
+  fps: 30
+  background: "#1A1A1A"      # hex color for canvas background
+
+# Path variables — referenced as ${name} in section string values.
+# paths:
+#   videos: "/path/to/video/assets"
+
+# Named colors — available to renderers as colors dict.
+# colors:
+#   text: "#D5D5D3"
+#   text_secondary: "#888888"
+#   accent: "#B1134D"
+#   landed: "#50DC78"
+#   crashed: "#F04646"
+
+sections:
+
+  # ── title_card ─────────────────────────────────────────────────
+  # Full-screen text card with title and optional subtitle.
+  #
+  # Required: title (str), duration (seconds)
+  # Optional: label, subtitle (str, supports \n)
+  #
+  # - template: title_card
+  #   label: intro
+  #   title: "Main Title"
+  #   subtitle: "Subtitle text\nwith line breaks"
+  #   duration: 10
+
+  # ── single_clip ────────────────────────────────────────────────
+  # One video clip with header, subtitle, and annotations.
+  #
+  # Required: clip (dict with path, annotation_side, annotations)
+  # Optional: label, header, subtitle
+  #
+  # - template: single_clip
+  #   label: example-clip
+  #   header: "Section Header"
+  #   subtitle: "Description text"
+  #   clip:
+  #     path: "${videos}/episode.mp4"
+  #     annotation_side: left        # left | right | above | below
+  #     annotations:
+  #       - text: "LANDED"
+  #         color: "#50DC78"          # optional, hex color
+  #         weight: bold              # optional, normal | bold
+
+  # ── grid_2x1 ──────────────────────────────────────────────────
+  # 2 clips side by side (1 row, 2 columns).
+  #
+  # Required: clips (list of exactly 2 clip dicts)
+  # Optional: label, header, subtitle
+  #
+  # - template: grid_2x1
+  #   label: gravity-demo
+  #   header: "Section Header"
+  #   subtitle: "Description"
+  #   clips:
+  #     - path: "${videos}/clip-a.mp4"
+  #       annotation_side: below
+  #       annotations:
+  #         - text: "Low gravity"
+  #     - path: "${videos}/clip-b.mp4"
+  #       annotation_side: below
+  #       annotations:
+  #         - text: "High gravity"
+
+  # ── grid_2x2 ──────────────────────────────────────────────────
+  # 4 clips in a 2x2 grid (2 rows, 2 columns). Row-major order.
+  #
+  # Required: clips (list of exactly 4)
+  # Optional: label, header, subtitle, column_headers (list of 2)
+  #
+  # - template: grid_2x2
+  #   label: comparison
+  #   header: "Header"
+  #   clips:  # [row0-col0, row0-col1, row1-col0, row1-col1]
+  #     - path: "..." annotation_side: left annotations: [...]
+  #     - path: "..." annotation_side: left annotations: [...]
+  #     - path: "..." annotation_side: left annotations: [...]
+  #     - path: "..." annotation_side: left annotations: [...]
+
+  # ── grid_3x1 ──────────────────────────────────────────────────
+  # 3 clips in a row (1 row, 3 columns).
+  #
+  # Required: clips (list of exactly 3)
+  # Optional: label, header, subtitle, column_headers (list of 3)
+
+  # ── grid_2x4 ──────────────────────────────────────────────────
+  # 8 clips in a 4-row, 2-column grid. Row-major order.
+  #
+  # Required: clips (list of exactly 8)
+  # Optional: label, header, subtitle, column_headers (list of 2)
+  #
+  # - template: grid_2x4
+  #   label: two-strategies
+  #   header: "Header"
+  #   subtitle: "Description"
+  #   column_headers:
+  #     - "Column A label"
+  #     - "Column B label"
+  #   clips:  # [r0c0, r0c1, r1c0, r1c1, r2c0, r2c1, r3c0, r3c1]
+  #     - path: "..." annotation_side: left annotations: [...]
+  #     # ... 8 total
+
+  # ── grid_3x4 ──────────────────────────────────────────────────
+  # 12 clips in a 4-row, 3-column grid. Row-major order.
+  #
+  # Required: clips (list of exactly 12)
+  # Optional: label, header, subtitle, column_headers (list of 3)
+
+  # ── paired_2x2 ────────────────────────────────────────────────
+  # Two side-by-side 2x2 groups with independent headers.
+  # Each group has its own header and 4 clips (2x2 grid).
+  # A vertical divider separates the two groups.
+  #
+  # Required: groups (list of exactly 2 group dicts)
+  #   Each group: header (str), clips (list of exactly 4)
+  # Optional: label, header (section-level), subtitle
+  #
+  # - template: paired_2x2
+  #   label: body-vs-world
+  #   header: "Section Header"
+  #   subtitle: "Description"
+  #   groups:
+  #     - header: "Left Group Title"
+  #       clips:
+  #         - path: "${videos}/left-0.mp4"
+  #           annotation_side: above
+  #           annotations:
+  #             - text: "LANDED"
+  #               color: "#50DC78"
+  #               weight: bold
+  #         - path: "${videos}/left-1.mp4"
+  #           annotation_side: above
+  #           annotations: [...]
+  #         - path: "${videos}/left-2.mp4"
+  #           annotation_side: above
+  #           annotations: [...]
+  #         - path: "${videos}/left-3.mp4"
+  #           annotation_side: above
+  #           annotations: [...]
+  #     - header: "Right Group Title"
+  #       clips:
+  #         - path: "${videos}/right-0.mp4"
+  #           annotation_side: above
+  #           annotations: [...]
+  #         # ... 4 total
+
+  # ── text_slide ───────────────────────────────────────────────────
+  # Static text section with 1-3 columns. Like a presentation slide.
+  # Uses section container (header + subtitle). Duration from config.
+  # 2+ columns get subtle accent-colored vertical dividers.
+  # 3 columns use slightly smaller font to maximize text density.
+  #
+  # Required: header, duration, columns (list of 1-3 column dicts)
+  # Each column: lines (list of annotation-style dicts)
+  # Optional: label, subtitle
+  #
+  # - template: text_slide
+  #   label: key-findings
+  #   header: "Key Findings"
+  #   subtitle: "Labeled vs Blind Agent"
+  #   duration: 5
+  #   columns:
+  #     - lines:
+  #         - text: "Labeled Agent"
+  #           weight: bold
+  #         - text: "22D observation"
+  #         - text: "Knows physics params"
+  #     - lines:
+  #         - text: "Blind Agent"
+  #           weight: bold
+  #           color: "#e04c77"
+  #         - text: "15D observation"
+  #         - text: "No physics info"
+
+  # ── Overlays (per-clip and section-level) ────────────────────────
+  # Semi-transparent text rendered on top of video frames.
+  # Per-clip: add 'overlay' field to any clip dict.
+  # Section-level: add 'overlay' field to any section dict.
+  #
+  # 3x3 grid positions:
+  #   top-left, top-center, top-right
+  #   middle-left, middle-center, middle-right
+  #   bottom-left, bottom-center, bottom-right
+  #
+  # Optional rotation: 0 (horizontal), 90 (top-to-bottom), -90 (bottom-to-top)
+  #
+  # Per-clip overlay example:
+  #   clip:
+  #     path: "${videos}/episode.mp4"
+  #     annotation_side: left
+  #     annotations: [...]
+  #     overlay:
+  #       - text: "g = -4.4"
+  #         position: bottom-left
+  #         color: "#50DC78"
+  #         weight: bold
+  #         rotation: 0
+  #
+  # Section-level overlay example:
+  # - template: grid_2x2
+  #   header: "Comparison"
+  #   overlay:
+  #     - text: "DRAFT"
+  #       position: top-right
+  #       color: "#F04646"
+  #   clips: [...]

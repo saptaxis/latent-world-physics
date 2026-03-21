@@ -1,0 +1,31 @@
+# Reconstruction-pretrained encoder: FROZEN.
+# Ablation: is the benefit from physics structure or just good visual features?
+# Autoencoder-trained CNN (no physics bias), frozen, only MLP head trains.
+variant: visual
+algo: ppo
+profile: gym-default
+total_steps: 10_000_000
+n_stack: 4
+frame_size: 128
+cnn_backbone: impala
+video_freq: 500_000
+early_stop_landed_pct: 95.0
+early_stop_patience: 5
+n_envs: 8
+
+# --- PPO hyperparams ---
+learning_rate: 2.5e-4
+lr_schedule: linear
+n_steps: 128
+batch_size: 256
+n_epochs: 4
+gamma: 0.99
+gae_lambda: 0.95
+clip_range: 0.1
+ent_coef: 0.01
+
+net_arch: [128, 128]
+
+# --- Pre-trained encoder ---
+encoder_weights: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/encoder-pretrain/recon-ae-all/best_encoder.pt
+freeze_encoder: true

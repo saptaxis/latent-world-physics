@@ -1,0 +1,15 @@
+# History agent on fixed Gymnasium default physics (no randomization).
+# Sanity check: should solve trivially like labeled (100%) and blind (100%).
+variant: history
+algo: ppo
+profile: gym-default
+total_steps: 3_000_000
+video_freq: 250_000
+early_stop_landed_pct: 90.0
+early_stop_patience: 4
+run_dir: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/baselines/history-ppo-gym-default-small
+n_envs: 8
+history_k: 8
+
+# RL Zoo default: 2 hidden layers of 64 units (shared actor/critic).
+net_arch: [64, 64]

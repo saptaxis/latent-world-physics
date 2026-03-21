@@ -1,0 +1,17 @@
+# Multi-seed validation: vehicle-only (fixed physics, varied vehicle).
+# Strongest diagnostic condition — blind beats labeled even when labels
+# describe the agent's own body. Key evidence for the mechanism.
+# Use with --seeds and --output-base:
+#   python lunar_lander/scripts/train_all_agents.py \
+#       --batch multi-seed-vehicle-only \
+#       --batch multi-seed-vehicle-only \
+#       --seeds 123,456,789,1024 \
+#       --output-base /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral
+#   (seed=42 already exists as symlinks in the output tree)
+runs:
+  # Easy difficulty (blind 97% vs labeled 86% on single seed)
+  - vehicle-only/labeled-ppo-easy-128-lowent
+  - vehicle-only/blind-ppo-easy-128-lowent
+  # Hard difficulty (blind 89% vs labeled 72% — largest effect)
+  - vehicle-only/labeled-ppo-hard-128-lowent
+  - vehicle-only/blind-ppo-hard-128-lowent

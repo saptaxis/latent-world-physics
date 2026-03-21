@@ -1,0 +1,15 @@
+# Labeled agent + PPO on easy with 2x64 net, entropy bonus REMOVED.
+# Comparison: does ent_coef=0.0 help or hurt the small net?
+# The 2x64 easy agent reached 85% with ent_coef=0.01 — will 0.0 push it higher
+# or cause premature collapse?
+variant: labeled
+algo: ppo
+profile: easy
+total_steps: 3_000_000
+video_freq: 250_000
+run_dir: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/labeled-ppo-easy-small-noent-Feb122026
+n_envs: 8
+ent_coef: 0.0
+
+# RL Zoo default: 2 hidden layers of 64 units (shared actor/critic).
+net_arch: [64, 64]

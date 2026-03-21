@@ -1,0 +1,117 @@
+# Parametric vs Behavioral: multi-seed validation of labeled vs blind.
+# 12 configs across 3 conditions, N=3 each (labeled-easy-full-variation has N=5).
+experiment: parametric-vs-behavioral
+description: "Seed aggregation for labeled and blind configs across 3 conditions (N=3, one at N=5)"
+output_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/analysis/seed-aggregation/parametric-vs-behavioral
+
+configs:
+  # === FULL VARIATION (all 7 physics params randomized) ===
+  full-variation/labeled-ppo-easy-128-lowent:
+    variant: labeled
+    condition: full-variation
+    profile: easy
+    net_arch: [128, 128]
+    ent_coef: 0.001
+    seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/full-variation/labeled-ppo-easy-128-lowent
+    seeds: [42, 123, 456, 789, 1024]
+
+  full-variation/blind-ppo-easy-128-lowent:
+    variant: blind
+    condition: full-variation
+    profile: easy
+    net_arch: [128, 128]
+    ent_coef: 0.001
+    seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/full-variation/blind-ppo-easy-128-lowent
+    seeds: [42, 123, 456]
+
+  full-variation/labeled-ppo-medium-128-lowent:
+    variant: labeled
+    condition: full-variation
+    profile: medium
+    net_arch: [128, 128]
+    ent_coef: 0.001
+    seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/full-variation/labeled-ppo-medium-128-lowent
+    seeds: [42, 123, 456]
+
+  full-variation/blind-ppo-medium-128-lowent:
+    variant: blind
+    condition: full-variation
+    profile: medium
+    net_arch: [128, 128]
+    ent_coef: 0.001
+    seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/full-variation/blind-ppo-medium-128-lowent
+    seeds: [42, 123, 456]
+
+  # === VEHICLE-ONLY (fixed physics, variable vehicle) ===
+  vehicle-only/labeled-ppo-easy-128-lowent:
+    variant: labeled
+    condition: vehicle-only
+    profile: easy
+    net_arch: [128, 128]
+    ent_coef: 0.001
+    seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/vehicle-only/labeled-ppo-easy-128-lowent
+    seeds: [42, 123, 456]
+
+  vehicle-only/blind-ppo-easy-128-lowent:
+    variant: blind
+    condition: vehicle-only
+    profile: easy
+    net_arch: [128, 128]
+    ent_coef: 0.001
+    seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/vehicle-only/blind-ppo-easy-128-lowent
+    seeds: [42, 123, 456]
+
+  vehicle-only/labeled-ppo-hard-128-lowent:
+    variant: labeled
+    condition: vehicle-only
+    profile: hard
+    net_arch: [128, 128]
+    ent_coef: 0.001
+    seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/vehicle-only/labeled-ppo-hard-128-lowent
+    seeds: [42, 123, 456]
+
+  vehicle-only/blind-ppo-hard-128-lowent:
+    variant: blind
+    condition: vehicle-only
+    profile: hard
+    net_arch: [128, 128]
+    ent_coef: 0.001
+    seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/vehicle-only/blind-ppo-hard-128-lowent
+    seeds: [42, 123, 456]
+
+  # === PHYSICS-ONLY (fixed vehicle, variable physics) ===
+  physics-only/labeled-ppo-easy-128-lowent:
+    variant: labeled
+    condition: physics-only
+    profile: easy
+    net_arch: [128, 128]
+    ent_coef: 0.001
+    seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/physics-only/labeled-ppo-easy-128-lowent
+    seeds: [42, 123, 456]
+
+  physics-only/blind-ppo-easy-128-lowent:
+    variant: blind
+    condition: physics-only
+    profile: easy
+    net_arch: [128, 128]
+    ent_coef: 0.001
+    seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/physics-only/blind-ppo-easy-128-lowent
+    seeds: [42, 123, 456]
+
+  physics-only/labeled-ppo-medium-128-lowent:
+    variant: labeled
+    condition: physics-only
+    profile: medium
+    net_arch: [128, 128]
+    ent_coef: 0.001
+    seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/physics-only/labeled-ppo-medium-128-lowent
+    seeds: [42, 123, 456]
+
+  physics-only/blind-ppo-medium-128-lowent:
+    variant: blind
+    condition: physics-only
+    profile: medium
+    net_arch: [128, 128]
+    ent_coef: 0.001
+    seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/physics-only/blind-ppo-medium-128-lowent
+    seeds: [42, 123, 456]

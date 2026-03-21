@@ -1,0 +1,7 @@
+# Labeled agent + SAC: full physics info (22D obs).
+variant: labeled
+algo: sac
+profile: easy
+total_steps: 3_000_000
+video_freq: 500_000
+run_dir: runs/lunar_lander/labeled-sac

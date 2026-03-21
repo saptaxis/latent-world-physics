@@ -1,0 +1,13 @@
+# History agent + PPO on medium with 2x128 net AND reduced entropy (ent_coef=0.001).
+# labeled: 77%, blind: 75%. Roughly tied on medium — does history break it?
+variant: history
+algo: ppo
+profile: medium
+total_steps: 4_000_000
+video_freq: 250_000
+run_dir: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/full-variation/history-ppo-medium-128-lowent
+n_envs: 8
+ent_coef: 0.001
+history_k: 8
+
+net_arch: [128, 128]

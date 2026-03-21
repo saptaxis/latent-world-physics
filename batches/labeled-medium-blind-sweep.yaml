@@ -1,0 +1,9 @@
+# Labeled medium/hard + blind gym-default through hard — all 3x256.
+# Order: easiest first so early stopping saves time on solved configs.
+runs:
+  - blind-ppo-gym-default
+  - blind-ppo-easy
+  - labeled-ppo-medium
+  - blind-ppo-medium
+  - labeled-ppo-hard
+  - blind-ppo-hard

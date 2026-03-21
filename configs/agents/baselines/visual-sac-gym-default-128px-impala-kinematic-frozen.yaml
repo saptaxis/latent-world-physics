@@ -1,0 +1,24 @@
+# SAC + kinematic-pretrained FROZEN encoder.
+# Does the pretrained encoder help SAC too? If yes, the finding is about
+# representation, not algorithm. If SAC lands without pretraining, this
+# is unnecessary — but SAC random-init isn't landing either.
+variant: visual
+algo: sac
+profile: gym-default
+total_steps: 1_000_000
+n_stack: 4
+frame_size: 128
+cnn_backbone: impala
+video_freq: 250_000
+early_stop_landed_pct: 95.0
+early_stop_patience: 5
+n_envs: 8
+
+learning_rate: 3.0e-4
+batch_size: 256
+gamma: 0.99
+
+net_arch: [256, 256]
+
+encoder_weights: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/encoder-pretrain/run1/best_encoder.pt
+freeze_encoder: true

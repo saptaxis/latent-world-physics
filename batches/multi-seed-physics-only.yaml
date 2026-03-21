@@ -1,0 +1,17 @@
+# Multi-seed validation: physics-only (fixed vehicle, varied physics).
+# The ambiguous condition — labeled wins easy (98 vs 81), blind wins medium
+# (100 vs 92). Seed variation will characterize the boundary.
+# Use with --seeds and --output-base:
+#   python lunar_lander/scripts/train_all_agents.py \
+#       --batch multi-seed-physics-only \
+#       --batch multi-seed-physics-only \
+#       --seeds 123,456,789,1024 \
+#       --output-base /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral
+#   (seed=42 already exists as symlinks in the output tree)
+runs:
+  # Easy difficulty (labeled 98% vs blind 81% — labeled's best case)
+  - physics-only/labeled-ppo-easy-128-lowent
+  - physics-only/blind-ppo-easy-128-lowent
+  # Medium difficulty (blind 100% vs labeled 92% — blind dominates)
+  - physics-only/labeled-ppo-medium-128-lowent
+  - physics-only/blind-ppo-medium-128-lowent

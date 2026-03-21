@@ -1,0 +1,17 @@
+# Body vs Physics sweep: Condition A (physics-only) + Condition B (vehicle-only).
+# 8 runs at 4M steps each. Tests body adaptation vs physics adaptation separately.
+# All at best architecture: 2x128, ent_coef=0.001.
+#
+# Condition A: fixed vehicle (gym defaults), varied physics.
+# Condition B: fixed physics (gym defaults), varied vehicle.
+runs:
+  # === CONDITION A: PHYSICS-ONLY (4 runs) ===
+  - physics-only/labeled-ppo-easy-128-lowent
+  - physics-only/blind-ppo-easy-128-lowent
+  - physics-only/labeled-ppo-medium-128-lowent
+  - physics-only/blind-ppo-medium-128-lowent
+  # === CONDITION B: VEHICLE-ONLY (4 runs) ===
+  - vehicle-only/labeled-ppo-easy-128-lowent
+  - vehicle-only/blind-ppo-easy-128-lowent
+  - vehicle-only/labeled-ppo-medium-128-lowent
+  - vehicle-only/blind-ppo-medium-128-lowent

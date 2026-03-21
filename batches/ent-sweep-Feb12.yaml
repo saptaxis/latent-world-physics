@@ -1,0 +1,17 @@
+# Entropy coefficient + architecture sweep (Feb 12).
+# 6 runs, ~40min each, ~4 hours total.
+#
+# Runs ordered: baselines first (early-stop saves time), then experiments.
+#   1. blind gym-default baseline (early stop 95%)
+#   2. labeled 2x64 noent (already created)
+#   3. labeled 3x256 lowent (Goldilocks: 0.001)
+#   4. labeled 2x128 default ent (capacity test)
+#   5. labeled 2x128 lowent (both levers)
+#   6. blind easy lowent (the research comparison)
+runs:
+  - blind-ppo-gym-default
+  - labeled-ppo-easy-small-noent
+  - labeled-ppo-easy-lowent
+  - labeled-ppo-easy-128
+  - labeled-ppo-easy-128-lowent
+  - blind-ppo-easy-lowent

@@ -1,0 +1,21 @@
+# World model data collection: noisy expert (blind agent seed 42 + action noise)
+# Part of 100K dataset (noisy experts contribute 10K total: 2 seeds × 5K)
+
+source_type: noisy_expert
+checkpoint_dir: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/full-variation/blind-ppo-easy-128-lowent/s42
+n_episodes: 5000
+seed: 0
+deterministic: true
+save_frames: false
+noise_sigma: [0.01, 0.5]
+
+physics_sampling:
+  method: uniform
+  ranges:
+    gravity: [-12.0, -2.0]
+    main_engine_power: [5.0, 25.0]
+    side_engine_power: [0.2, 1.5]
+    lander_density: [2.5, 10.0]
+    angular_damping: [0.0, 5.0]
+    wind_power: [0.0, 30.0]
+    turbulence_power: [0.0, 5.0]

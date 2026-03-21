@@ -1,0 +1,28 @@
+# Visual-blind agent + PPO on fixed Gymnasium default physics.
+# 128x128 frames, IMPALA ResNet backbone, lower LR for stability.
+# clip_fraction was 0.42 at 2.5e-4 — too high, policy thrashing.
+# Control: visual-ppo-gym-default-128px-impala.yaml (same but lr=2.5e-4, 5M steps).
+variant: visual
+algo: ppo
+profile: gym-default
+total_steps: 10_000_000
+n_stack: 4
+frame_size: 128
+cnn_backbone: impala
+video_freq: 500_000
+early_stop_landed_pct: 90.0
+early_stop_patience: 5
+n_envs: 8
+
+# --- PPO hyperparams ---
+learning_rate: 1.0e-4
+n_steps: 128
+batch_size: 256
+n_epochs: 4
+gamma: 0.99
+gae_lambda: 0.95
+clip_range: 0.1
+ent_coef: 0.01
+
+# 2x128 MLP head after CNN features — matches Expt 1 state-vector agents.
+net_arch: [128, 128]

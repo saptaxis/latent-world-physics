@@ -1,0 +1,20 @@
+# Full blind sweep on easy domain randomization (Feb 12).
+# 6 runs, ~30min each, ~3 hours total.
+#
+# Mirrors every labeled easy run to test: does blind > labeled hold
+# across all architectures and ent_coef settings?
+#
+# Ordered: smallest/fastest first, largest last.
+#   1. blind 2x64 default ent (vs labeled 2x64: 85%)
+#   2. blind 2x64 noent (vs labeled 2x64 noent: 82%)
+#   3. blind 2x128 default ent (vs labeled 2x128: 76%)
+#   4. blind 2x128 lowent (THE key comparison — vs labeled 2x128 lowent: 83%)
+#   5. blind 3x256 default ent (vs labeled 3x256: 60%)
+#   6. blind 3x256 noent (vs labeled 3x256 noent: ~59%)
+runs:
+  - blind-ppo-easy-small
+  - blind-ppo-easy-small-noent
+  - blind-ppo-easy-128
+  - blind-ppo-easy-128-lowent
+  - blind-ppo-easy
+  - blind-ppo-easy-noent

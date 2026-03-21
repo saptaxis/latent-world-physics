@@ -1,0 +1,40 @@
+# Comparison 1: Labeled vs blind per isolated physics axis.
+# Expt E — does blind match labeled for each isolated axis?
+# N=5 seeds per variant per sub-condition.
+experiment: physics-axis-isolation
+description: "Labeled vs blind for each isolated physics axis (gravity, wind, turbulence)"
+output_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/analysis/cross-config/physics-axis-isolation
+
+comparisons:
+  gravity-only:
+    condition: gravity-only
+    profile: gravity-only
+    configs:
+      labeled:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/gravity-only/labeled-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024]
+      blind:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/gravity-only/blind-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024]
+
+  wind-only:
+    condition: wind-only
+    profile: wind-only
+    configs:
+      labeled:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/wind-only/labeled-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024]
+      blind:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/wind-only/blind-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024]
+
+  turbulence-only:
+    condition: turbulence-only
+    profile: turbulence-only
+    configs:
+      labeled:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/turbulence-only/labeled-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024]
+      blind:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/turbulence-only/blind-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024]

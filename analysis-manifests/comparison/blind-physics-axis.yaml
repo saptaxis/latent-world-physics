@@ -1,0 +1,24 @@
+# Comparison 2 (+4): Blind agents across isolated physics axes.
+# Expt E core question — which axis is hardest for the blind agent?
+# Includes physics-only-easy blind (N=10) as bundled reference (Comparison 4).
+experiment: blind-physics-axis
+description: "Blind agent performance across isolated physics axes + bundled reference"
+output_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/analysis/cross-config/blind-physics-axis
+
+comparisons:
+  blind-across-axes:
+    condition: cross-axis
+    profile: mixed
+    configs:
+      blind-gravity:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/gravity-only/blind-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024]
+      blind-wind:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/wind-only/blind-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024]
+      blind-turbulence:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/turbulence-only/blind-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024]
+      blind-physics-all:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/physics-only/blind-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]

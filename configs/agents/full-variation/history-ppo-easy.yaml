@@ -1,0 +1,16 @@
+# History agent + PPO on easy with 3x256 net (default ent_coef=0.01).
+# labeled: 60%, blind: 45%. Both struggle at this scale with default ent.
+# History's 120D input on 3x256 may exacerbate entropy explosion.
+variant: history
+algo: ppo
+profile: easy
+total_steps: 4_000_000
+video_freq: 250_000
+run_dir: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/full-variation/history-ppo-easy-256
+n_envs: 8
+history_k: 8
+
+# Research network: separate 3x256 actor and critic (~200K params).
+net_arch:
+  pi: [256, 256, 256]
+  vf: [256, 256, 256]

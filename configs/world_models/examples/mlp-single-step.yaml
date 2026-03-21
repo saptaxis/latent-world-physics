@@ -1,0 +1,16 @@
+arch: mlp
+arch_params:
+  hidden_dims: [256, 256]
+  activation: relu
+prediction: delta
+training_mode: single_step
+rollout_k: 1
+data_mix: policy
+data_path: SET_ME
+state_dim: 8
+action_dim: 2
+lr: 0.001
+batch_size: 64
+epochs: 100
+val_fraction: 0.1
+run_dir: runs/

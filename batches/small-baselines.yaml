@@ -1,0 +1,6 @@
+# Diagnostic baselines with RL Zoo default 2x64 network.
+# Run these to verify the env works before committing to 3x256 training.
+runs:
+  - labeled-ppo-gym-default-small
+  - labeled-ppo-easy-small
+  - blind-ppo-small

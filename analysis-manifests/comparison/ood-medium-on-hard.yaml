@@ -1,0 +1,18 @@
+# Forward OOD: medium-trained labeled vs blind evaluated on hard profile.
+experiment: ood-medium-on-hard
+description: "Medium-trained agents evaluated on hard physics profile (forward OOD from medium)"
+output_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/analysis/cross-config/ood-medium-on-hard
+
+comparisons:
+  full-variation-medium-trained-on-hard:
+    condition: full-variation
+    profile: hard
+    configs:
+      labeled:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/full-variation/labeled-ppo-medium-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+        trajectory_subdir: trajectories-ood-hard
+      blind:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/full-variation/blind-ppo-medium-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+        trajectory_subdir: trajectories-ood-hard

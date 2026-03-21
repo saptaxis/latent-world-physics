@@ -1,0 +1,23 @@
+# Parametric vs Behavioral: full multi-seed validation (all 3 conditions).
+# 12 configs × 4 seeds = 48 runs. seed=42 already exists as symlinks.
+#
+#   python lunar_lander/scripts/train_all_agents.py \
+#       --batch multi-seed-parametric-vs-behavioral \
+#       --seeds 123,456,789,1024 \
+#       --output-base /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral
+runs:
+  # === FULL VARIATION (all 7 params) — primary claim ===
+  - full-variation/labeled-ppo-easy-128-lowent
+  - full-variation/blind-ppo-easy-128-lowent
+  - full-variation/labeled-ppo-medium-128-lowent
+  - full-variation/blind-ppo-medium-128-lowent
+  # === VEHICLE-ONLY (fixed physics) — strongest mechanistic evidence ===
+  - vehicle-only/labeled-ppo-easy-128-lowent
+  - vehicle-only/blind-ppo-easy-128-lowent
+  - vehicle-only/labeled-ppo-hard-128-lowent
+  - vehicle-only/blind-ppo-hard-128-lowent
+  # === PHYSICS-ONLY (fixed vehicle) — boundary condition ===
+  - physics-only/labeled-ppo-easy-128-lowent
+  - physics-only/blind-ppo-easy-128-lowent
+  - physics-only/labeled-ppo-medium-128-lowent
+  - physics-only/blind-ppo-medium-128-lowent

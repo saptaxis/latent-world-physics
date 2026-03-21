@@ -1,0 +1,15 @@
+# Blind agent + PPO on gym-default with 2x128 net + low entropy.
+# For WM data collection — matches easy/medium 128-lowent architecture
+# so collection speed is comparable.
+variant: blind
+algo: ppo
+profile: gym-default
+total_steps: 4_000_000
+video_freq: 250_000
+early_stop_landed_pct: 95.0
+early_stop_patience: 4
+n_envs: 8
+ent_coef: 0.001
+
+# Intermediate: 2 hidden layers of 128 units (shared actor/critic, ~32K params).
+net_arch: [128, 128]

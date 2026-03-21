@@ -1,0 +1,46 @@
+# N=10 evidence strengthening: 4 conditions × 2 variants.
+# Fills each config to N=10 seeds for Article 1 statistical power.
+#
+# Existing seeds: s42, s123, s456 (all configs), plus s789, s1024 (full-var-easy labeled only).
+# New seeds: 789, 1024, 2048, 4096, 8192, 16384, 32768
+#   - full-var-easy labeled needs 5 (already has 789, 1024): seeds 2048,4096,8192,16384,32768
+#   - all others need 7: seeds 789,1024,2048,4096,8192,16384,32768
+#
+# To run 2 in parallel (split seeds across 2 terminals):
+#
+#   Terminal 1 (seeds A):
+#   python lunar_lander/scripts/train_all_agents.py \
+#       --batch n10-evidence-strengthening \
+#       --seeds 789,1024,2048,4096 \
+#       --output-base /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral \
+#       --resume
+#
+#   Terminal 2 (seeds B):
+#   python lunar_lander/scripts/train_all_agents.py \
+#       --batch n10-evidence-strengthening \
+#       --seeds 8192,16384,32768 \
+#       --output-base /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral \
+#       --resume
+#
+# The --resume flag skips seeds that already have model.zip (e.g. s789, s1024 for full-var labeled).
+#
+# Each run: ~65 min (4M steps @ ~1000 steps/sec).
+# Terminal 1: 8 configs × 4 seeds = 32 runs → ~35h
+# Terminal 2: 8 configs × 3 seeds = 24 runs → ~26h
+# Wall time with 2 parallel: ~35h
+#
+# Dropped from original batch (per direction doc):
+#   - vehicle-only-hard: baseline performance too low (55%), adds noise
+#   - physics-only-medium: redundant with physics-only-easy for the diagnostic
+runs:
+  # === FULL VARIATION (all 7 params) — primary comparison ===
+  - full-variation/labeled-ppo-easy-128-lowent
+  - full-variation/blind-ppo-easy-128-lowent
+  - full-variation/labeled-ppo-medium-128-lowent
+  - full-variation/blind-ppo-medium-128-lowent
+  # === PHYSICS-ONLY (fixed vehicle) — diagnostic: blind smoothness matches labeled ===
+  - physics-only/labeled-ppo-easy-128-lowent
+  - physics-only/blind-ppo-easy-128-lowent
+  # === VEHICLE-ONLY (fixed physics) — contrast: blind smoothness collapses ===
+  - vehicle-only/labeled-ppo-easy-128-lowent
+  - vehicle-only/blind-ppo-easy-128-lowent

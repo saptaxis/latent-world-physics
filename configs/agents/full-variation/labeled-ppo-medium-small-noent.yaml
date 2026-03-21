@@ -1,0 +1,12 @@
+# Labeled agent + PPO on medium with 2x64 net, entropy bonus REMOVED.
+variant: labeled
+algo: ppo
+profile: medium
+total_steps: 4_000_000
+video_freq: 250_000
+run_dir: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/labeled-ppo-medium-small-noent-Feb122026
+n_envs: 8
+ent_coef: 0.0
+
+# RL Zoo default: 2 hidden layers of 64 units (shared actor/critic).
+net_arch: [64, 64]

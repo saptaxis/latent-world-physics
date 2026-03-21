@@ -1,0 +1,35 @@
+# Mix config v1: pointers to collection directories + split rules.
+# No data is copied — the dataloader follows these pointers at load time.
+# See specs/training-infrastructure.md for the full design.
+
+profiles:
+  - name: full-variation
+    path: full-variation       # 100K episodes, uniform physics sampling
+  - name: easy
+    path: easy                 # 100K episodes, easy profile (no wind, TWR >= 8)
+  - name: medium
+    path: medium               # 100K episodes, medium profile (moderate wind, TWR >= 4)
+
+# Base directory for resolving relative profile paths above.
+data_base: /media/hdd1/physics-priors-latent-space/lunar-lander-data/world_model_data
+
+# Each profile directory contains source subdirectories (blind-s42, heuristic, etc.)
+# with .npz episodes. The loader scans all subdirectories within selected profiles.
+
+split:
+  method: quantile_grid
+  axes: [gravity, main_engine_power, lander_density]
+  bins: 3  # 3 bins per axis = 27 regions
+
+  train_ratio: 0.8
+  val_ratio: 0.1
+  # Remaining 0.1 = in-distribution test
+
+  # OOD holdout: extreme physics corner (high gravity, low thrust, heavy lander).
+  # Episodes matching ALL conditions go to the OOD test set before quantile assignment.
+  ood_holdout:
+    gravity: [-12.0, -9.0]
+    main_engine_power: [5.0, 8.0]
+    lander_density: [7.5, 10.0]
+
+  policy_holdout: null

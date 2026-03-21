@@ -1,0 +1,22 @@
+# Visual-blind SAC: off-policy baseline.
+# Tests whether SAC solves visual RL without pretrained encoder.
+# If SAC lands with random init, pretrained encoder is PPO-specific.
+# If SAC also struggles, visual Lunar Lander is genuinely hard.
+variant: visual
+algo: sac
+profile: gym-default
+total_steps: 1_000_000
+n_stack: 4
+frame_size: 128
+cnn_backbone: impala
+video_freq: 250_000
+early_stop_landed_pct: 95.0
+early_stop_patience: 5
+n_envs: 8
+
+# SAC defaults — off-policy, single env, replay buffer
+learning_rate: 3.0e-4
+batch_size: 256
+gamma: 0.99
+
+net_arch: [256, 256]

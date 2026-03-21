@@ -1,0 +1,12 @@
+# Fill gaps: 3 unfinished runs + 4 new body-vs-physics hard condition.
+# 7 runs at 4M steps each, ~45min each, ~5.5 hours total.
+runs:
+  # --- Unfinished from previous batches ---
+  - full-variation/blind-ppo-medium-noent
+  - vehicle-only/labeled-ppo-medium-128-lowent
+  - vehicle-only/blind-ppo-medium-128-lowent
+  # --- NEW: body-vs-physics hard (Conditions A + B) ---
+  - physics-only/labeled-ppo-hard-128-lowent
+  - physics-only/blind-ppo-hard-128-lowent
+  - vehicle-only/labeled-ppo-hard-128-lowent
+  - vehicle-only/blind-ppo-hard-128-lowent

@@ -1,0 +1,17 @@
+# Labeled agent + PPO on easy, with entropy bonus REMOVED (ent_coef=0.0).
+# Tests whether the 3x256 net converges without the entropy bonus that
+# caused non-convergence in labeled-ppo-easy (ent_coef=0.01 default).
+# See lunar-lander-training-runs.md, Feb 12 analysis.
+variant: labeled
+algo: ppo
+profile: easy
+total_steps: 3_000_000
+video_freq: 250_000
+run_dir: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/labeled-ppo-easy-noent-256-Feb122026
+n_envs: 8
+ent_coef: 0.0
+
+# Research network: separate 3x256 actor and critic (~200K params).
+net_arch:
+  pi: [256, 256, 256]
+  vf: [256, 256, 256]

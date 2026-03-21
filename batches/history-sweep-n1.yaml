@@ -1,0 +1,31 @@
+# History variant sweep N=1: architecture × entropy on full-variation.
+# Fills the history rows in the training matrix (training-runs.md).
+# Mirrors the labeled/blind sweep: 3 nets × 2-3 ent_coefs × easy+medium.
+# 16 runs × ~65 min = ~17 hours.
+#
+#   CUDA_VISIBLE_DEVICES="" python lunar_lander/scripts/train_all_agents.py \
+#       --batch history-sweep-n1
+runs:
+  # === GYM-DEFAULT BASELINES (sanity checks) ===
+  - baselines/history-ppo-gym-default-small
+  - baselines/history-ppo-gym-default
+  # === EASY — 2x64 ===
+  - full-variation/history-ppo-easy-small
+  - full-variation/history-ppo-easy-small-noent
+  # === EASY — 2x128 ===
+  - full-variation/history-ppo-easy-128
+  - full-variation/history-ppo-easy-128-lowent
+  # === EASY — 3x256 ===
+  - full-variation/history-ppo-easy
+  - full-variation/history-ppo-easy-lowent
+  - full-variation/history-ppo-easy-noent
+  # === MEDIUM — 2x64 ===
+  - full-variation/history-ppo-medium-small
+  - full-variation/history-ppo-medium-small-noent
+  # === MEDIUM — 2x128 ===
+  - full-variation/history-ppo-medium-128
+  - full-variation/history-ppo-medium-128-lowent
+  # === MEDIUM — 3x256 ===
+  - full-variation/history-ppo-medium
+  - full-variation/history-ppo-medium-lowent
+  - full-variation/history-ppo-medium-noent

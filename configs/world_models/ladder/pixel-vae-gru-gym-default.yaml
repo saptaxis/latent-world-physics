@@ -1,0 +1,32 @@
+# pixel-vae-gru-gym-default.yaml
+# Pixel world model config for Lunar Lander gym-default.
+# Staged training: VAE first, then dynamics with frozen VAE.
+
+model:
+  type: pixel_world_model
+  latent_dim: 64
+  in_channels: 1
+  frame_size: 84
+  encoder_channels: [32, 64, 128, 256]
+  dynamics_hidden: 256
+  beta: 0.0001
+
+training:
+  mode: staged
+  vae_epochs: 50
+  dynamics_epochs: 100
+  batch_size: 128
+  vae_lr: 3e-4
+  dynamics_lr: 3e-4
+  grad_clip: 1.0
+  sampling_start: 0.0
+  sampling_end: 0.5
+  sampling_warmup_frac: 0.5
+
+data:
+  path: /media/hdd1/physics-priors-latent-space/lunar-lander-data/encoder-pretrain
+  frame_size: 84
+  grayscale: true
+  frame_stack: 1
+  seq_len: 20
+  val_fraction: 0.1

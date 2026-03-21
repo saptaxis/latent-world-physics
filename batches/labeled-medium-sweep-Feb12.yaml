@@ -1,0 +1,13 @@
+# Full labeled sweep on medium domain randomization (Feb 12).
+# 7 runs at 4M steps, ~45min each, ~5 hours total.
+#
+# Same architecture × ent_coef grid as the easy sweep.
+# Tests whether easy findings (2x128-lowent best, 3x256 fails) hold under harder DR.
+runs:
+  - labeled-ppo-medium-small
+  - labeled-ppo-medium-small-noent
+  - labeled-ppo-medium-128
+  - labeled-ppo-medium-128-lowent
+  - labeled-ppo-medium
+  - labeled-ppo-medium-lowent
+  - labeled-ppo-medium-noent

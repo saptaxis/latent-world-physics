@@ -1,0 +1,15 @@
+# Baseline: labeled agent on fixed Gymnasium default physics (no randomization).
+# Control condition — single physics config, no domain randomization.
+variant: labeled
+algo: ppo
+profile: gym-default
+total_steps: 3_000_000
+video_freq: 250_000
+run_dir: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/labeled-ppo-gym-default-256-Feb122026
+n_envs: 8
+
+# Research network: separate 3x256 actor and critic (~200K params).
+# This is the default when net_arch is omitted — made explicit here.
+net_arch:
+  pi: [256, 256, 256]
+  vf: [256, 256, 256]

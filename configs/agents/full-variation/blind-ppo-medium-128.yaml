@@ -1,0 +1,11 @@
+# Blind agent + PPO on medium with 2x128 net (default ent_coef=0.01).
+variant: blind
+algo: ppo
+profile: medium
+total_steps: 4_000_000
+video_freq: 250_000
+run_dir: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/full-variation/blind-ppo-medium-128-Feb122026
+n_envs: 8
+
+# Intermediate: 2 hidden layers of 128 units (shared actor/critic, ~32K params).
+net_arch: [128, 128]

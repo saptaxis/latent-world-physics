@@ -1,0 +1,19 @@
+source_type: primitive
+n_episodes: 2000
+max_steps: 1000
+seed: 0
+physics_sampling:
+  profile: gym-default
+
+maneuver:
+  type: free_fall
+
+start:
+  mode: fresh_reset
+  initial_state:
+    x: [-0.8, 0.8]
+    y: [0.5, 1.5]
+    vx: [-1.0, 1.0]
+    vy: [-1.0, 0.5]
+    angle: [-1.0, 1.0]
+    angular_vel: [-0.5, 0.5]

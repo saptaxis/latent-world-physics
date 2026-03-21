@@ -1,0 +1,5 @@
+# Labeled agent on easy profile: small (2x64) and research (3x256) networks.
+# Compares whether the bigger network helps with domain randomization.
+runs:
+  - labeled-ppo-easy-small
+  - labeled-ppo-easy

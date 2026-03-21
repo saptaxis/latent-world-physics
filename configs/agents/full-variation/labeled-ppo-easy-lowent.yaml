@@ -1,0 +1,18 @@
+# Labeled agent + PPO on easy, with reduced entropy bonus (ent_coef=0.001).
+# Goldilocks test: 0.01 (default) was too much exploration for 3x256,
+# 0.0 was too little (collapsed before learning distribution).
+# 0.001 should allow moderate exploration without the "refuse to commit" pathology.
+# See lunar-lander-training-runs.md, Feb 12 analysis.
+variant: labeled
+algo: ppo
+profile: easy
+total_steps: 3_000_000
+video_freq: 250_000
+run_dir: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/labeled-ppo-easy-lowent-256-Feb122026
+n_envs: 8
+ent_coef: 0.001
+
+# Research network: separate 3x256 actor and critic (~200K params).
+net_arch:
+  pi: [256, 256, 256]
+  vf: [256, 256, 256]

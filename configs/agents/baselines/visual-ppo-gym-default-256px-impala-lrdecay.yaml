@@ -1,0 +1,27 @@
+# Arch sweep: 256px input with IMPALA (vs 128px baseline).
+# NatureCNN at 256px failed (10% landed), but IMPALA's 3x3 kernels
+# may benefit from higher resolution. Pool(4,4) caps param count.
+variant: visual
+algo: ppo
+profile: gym-default
+total_steps: 10_000_000
+n_stack: 4
+frame_size: 256
+cnn_backbone: impala
+video_freq: 500_000
+early_stop_landed_pct: 95.0
+early_stop_patience: 5
+n_envs: 8
+
+# --- PPO hyperparams ---
+learning_rate: 2.5e-4
+lr_schedule: linear
+n_steps: 128
+batch_size: 256
+n_epochs: 4
+gamma: 0.99
+gae_lambda: 0.95
+clip_range: 0.1
+ent_coef: 0.01
+
+net_arch: [128, 128]

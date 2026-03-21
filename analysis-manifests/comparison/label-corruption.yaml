@@ -1,0 +1,204 @@
+# Cross-config comparison manifest: label corruption test.
+# Compares uncorrupted labeled agents against all corruption modes.
+# Phase A2 of mechanistic investigation.
+# N=10 seeds for 4 primary conditions, N=3 for dropped conditions.
+#
+# Corruption modes:
+#   zero    — set physics dims to 0 (are labels load-bearing?)
+#   shuffle — permute physics dims within episode (does mapping matter?)
+#   mean    — replace with training-set mean (does per-episode variation matter?)
+#   noise   — add Gaussian noise (how precise must labels be?)
+#
+# Workflow:
+#   1. Collect baseline trajectories (already done):
+#      run_eval_pipeline.py --agents-dir .../labeled-ppo-easy-128-lowent --episodes 100
+#   2. Collect corrupted trajectories (one per mode):
+#      run_eval_pipeline.py --agents-dir ... --episodes 100 --corruption zero
+#      run_eval_pipeline.py --agents-dir ... --episodes 100 --corruption shuffle
+#      run_eval_pipeline.py --agents-dir ... --episodes 100 --corruption mean
+#      run_eval_pipeline.py --agents-dir ... --episodes 100 --corruption noise --corruption-sigma 0.1
+#      run_eval_pipeline.py --agents-dir ... --episodes 100 --corruption noise --corruption-sigma 0.5
+#   3. Compare:
+#      compare_configs.py --manifest comparison/label-corruption
+experiment: label-corruption
+description: "Label corruption test: do labeled agents use their physics labels?"
+output_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/analysis/cross-config/label-corruption
+
+comparisons:
+  # === FULL VARIATION, EASY ===
+  # The strongest test case: 7 physics params randomized, easy difficulty
+  full-variation-easy:
+    condition: full-variation
+    profile: easy
+    configs:
+      labeled:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/full-variation/labeled-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+      labeled-zeroed:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/full-variation/labeled-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+        trajectory_subdir: trajectories-zero
+      labeled-shuffled:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/full-variation/labeled-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+        trajectory_subdir: trajectories-shuffle
+      labeled-mean:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/full-variation/labeled-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+        trajectory_subdir: trajectories-mean
+      labeled-noise-01:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/full-variation/labeled-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+        trajectory_subdir: trajectories-noise-s0.1
+      labeled-noise-05:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/full-variation/labeled-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+        trajectory_subdir: trajectories-noise-s0.5
+
+  # === FULL VARIATION, MEDIUM ===
+  full-variation-medium:
+    condition: full-variation
+    profile: medium
+    configs:
+      labeled:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/full-variation/labeled-ppo-medium-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+      labeled-zeroed:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/full-variation/labeled-ppo-medium-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+        trajectory_subdir: trajectories-zero
+      labeled-shuffled:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/full-variation/labeled-ppo-medium-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+        trajectory_subdir: trajectories-shuffle
+      labeled-mean:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/full-variation/labeled-ppo-medium-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+        trajectory_subdir: trajectories-mean
+      labeled-noise-01:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/full-variation/labeled-ppo-medium-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+        trajectory_subdir: trajectories-noise-s0.1
+      labeled-noise-05:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/full-variation/labeled-ppo-medium-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+        trajectory_subdir: trajectories-noise-s0.5
+
+  # === PHYSICS-ONLY, EASY ===
+  physics-only-easy:
+    condition: physics-only
+    profile: easy
+    configs:
+      labeled:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/physics-only/labeled-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+      labeled-zeroed:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/physics-only/labeled-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+        trajectory_subdir: trajectories-zero
+      labeled-shuffled:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/physics-only/labeled-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+        trajectory_subdir: trajectories-shuffle
+      labeled-mean:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/physics-only/labeled-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+        trajectory_subdir: trajectories-mean
+      labeled-noise-01:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/physics-only/labeled-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+        trajectory_subdir: trajectories-noise-s0.1
+      labeled-noise-05:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/physics-only/labeled-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+        trajectory_subdir: trajectories-noise-s0.5
+
+  # === PHYSICS-ONLY, MEDIUM ===
+  physics-only-medium:
+    condition: physics-only
+    profile: medium
+    configs:
+      labeled:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/physics-only/labeled-ppo-medium-128-lowent
+        seeds: [42, 123, 456]
+      labeled-zeroed:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/physics-only/labeled-ppo-medium-128-lowent
+        seeds: [42, 123, 456]
+        trajectory_subdir: trajectories-zero
+      labeled-shuffled:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/physics-only/labeled-ppo-medium-128-lowent
+        seeds: [42, 123, 456]
+        trajectory_subdir: trajectories-shuffle
+      labeled-mean:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/physics-only/labeled-ppo-medium-128-lowent
+        seeds: [42, 123, 456]
+        trajectory_subdir: trajectories-mean
+      labeled-noise-01:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/physics-only/labeled-ppo-medium-128-lowent
+        seeds: [42, 123, 456]
+        trajectory_subdir: trajectories-noise-s0.1
+      labeled-noise-05:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/physics-only/labeled-ppo-medium-128-lowent
+        seeds: [42, 123, 456]
+        trajectory_subdir: trajectories-noise-s0.5
+
+  # === VEHICLE-ONLY, EASY ===
+  # Vehicle-only labels describe the lander body (density, damping) but not
+  # environmental physics (gravity, wind). Tests whether body-description
+  # labels are load-bearing.
+  vehicle-only-easy:
+    condition: vehicle-only
+    profile: easy
+    configs:
+      labeled:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/vehicle-only/labeled-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+      labeled-zeroed:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/vehicle-only/labeled-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+        trajectory_subdir: trajectories-zero
+      labeled-shuffled:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/vehicle-only/labeled-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+        trajectory_subdir: trajectories-shuffle
+      labeled-mean:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/vehicle-only/labeled-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+        trajectory_subdir: trajectories-mean
+      labeled-noise-01:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/vehicle-only/labeled-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+        trajectory_subdir: trajectories-noise-s0.1
+      labeled-noise-05:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/vehicle-only/labeled-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+        trajectory_subdir: trajectories-noise-s0.5
+
+  # === VEHICLE-ONLY, HARD ===
+  vehicle-only-hard:
+    condition: vehicle-only
+    profile: hard
+    configs:
+      labeled:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/vehicle-only/labeled-ppo-hard-128-lowent
+        seeds: [42, 123, 456]
+      labeled-zeroed:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/vehicle-only/labeled-ppo-hard-128-lowent
+        seeds: [42, 123, 456]
+        trajectory_subdir: trajectories-zero
+      labeled-shuffled:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/vehicle-only/labeled-ppo-hard-128-lowent
+        seeds: [42, 123, 456]
+        trajectory_subdir: trajectories-shuffle
+      labeled-mean:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/vehicle-only/labeled-ppo-hard-128-lowent
+        seeds: [42, 123, 456]
+        trajectory_subdir: trajectories-mean
+      labeled-noise-01:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/vehicle-only/labeled-ppo-hard-128-lowent
+        seeds: [42, 123, 456]
+        trajectory_subdir: trajectories-noise-s0.1
+      labeled-noise-05:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/vehicle-only/labeled-ppo-hard-128-lowent
+        seeds: [42, 123, 456]
+        trajectory_subdir: trajectories-noise-s0.5

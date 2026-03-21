@@ -1,0 +1,17 @@
+# History agent on fixed Gymnasium default physics (no randomization).
+# 3x256 sanity check. labeled: 100%, blind: 100%. History should match.
+variant: history
+algo: ppo
+profile: gym-default
+total_steps: 3_000_000
+video_freq: 250_000
+early_stop_landed_pct: 90.0
+early_stop_patience: 4
+run_dir: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/baselines/history-ppo-gym-default-256
+n_envs: 8
+history_k: 8
+
+# Research network: separate 3x256 actor and critic (~200K params).
+net_arch:
+  pi: [256, 256, 256]
+  vf: [256, 256, 256]

@@ -1,0 +1,18 @@
+# Mix config: gym-default only (fixed physics, no variation).
+# Sanity check — can the dynamics MLP learn a single physics configuration?
+
+profiles:
+  - name: gym-default
+    path: gym-default       # ~41K episodes, fixed Gymnasium default physics
+
+data_base: /media/hdd1/physics-priors-latent-space/lunar-lander-data/world_model_data
+
+# Fixed physics means no meaningful physics axes to stratify on.
+# Simple random split is sufficient.
+split:
+  method: random
+  train_ratio: 0.8
+  val_ratio: 0.1
+  # Remaining 0.1 = test
+
+  policy_holdout: null

@@ -1,0 +1,32 @@
+# Overnight mega-sweep: blind easy + labeled medium + blind medium (Feb 12).
+# 20 runs at 4M steps each. ~14 hours total.
+#
+# All three batches concatenated. Smallest/fastest configs first within each group.
+#
+# === BLIND EASY (6 runs) ===
+# Mirrors every labeled easy run to answer: does blind > labeled hold everywhere?
+runs:
+  # - blind-ppo-easy-small
+  - blind-ppo-easy-small-noent
+  - blind-ppo-easy-128
+  - blind-ppo-easy-128-lowent
+  - blind-ppo-easy
+  - blind-ppo-easy-noent
+  # === LABELED MEDIUM (7 runs) ===
+  # Full labeled grid on harder DR.
+  - labeled-ppo-medium-small
+  - labeled-ppo-medium-small-noent
+  - labeled-ppo-medium-128
+  - labeled-ppo-medium-128-lowent
+  - labeled-ppo-medium
+  - labeled-ppo-medium-lowent
+  - labeled-ppo-medium-noent
+  # === BLIND MEDIUM (7 runs) ===
+  # Full blind grid on harder DR.
+  - blind-ppo-medium-small
+  - blind-ppo-medium-small-noent
+  - blind-ppo-medium-128
+  - blind-ppo-medium-128-lowent
+  - blind-ppo-medium
+  - blind-ppo-medium-lowent
+  - blind-ppo-medium-noent

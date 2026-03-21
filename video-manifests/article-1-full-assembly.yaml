@@ -1,0 +1,51 @@
+# Article 1: PRODUCTION assembly manifest.
+# Reads rendered sections from composited/full-sections/, writes to composited/full-assembled/.
+#
+# Usage:
+#   clipcompose assemble \
+#       --manifest lunar_lander/video-manifests/article-1-full-assembly.yaml \
+#       --output .../composited/full-assembled/article-1.mp4 --gpu
+
+video:
+  fps: 30
+  transition: 1.5
+  transition_type: fade_to_black
+
+paths:
+  renders: "/media/hdd1/physics-priors-latent-space/lunar-lander-networks/articles/01-what-do-agents-learn/videos/composited/full-sections"
+
+sections:
+  - path: "${renders}/section-00-intro.mp4"
+    transition: 1.5
+    transition_type: fade_to_black
+  - path: "${renders}/section-01-demo-gravity.mp4"
+    transition: 0
+    transition_type: crossfade
+  - path: "${renders}/section-02-demo-wind.mp4"
+    transition: 0
+    transition_type: crossfade
+  - path: "${renders}/section-03-demo-turbulence.mp4"
+    transition: 0
+    transition_type: crossfade
+  - path: "${renders}/section-04-demo-angular-damping.mp4"
+    transition: 0
+    transition_type: crossfade
+  - path: "${renders}/section-05-demo-engine-power.mp4"
+    transition: 1.5
+    transition_type: fade_to_black
+  - path: "${renders}/section-06-two-strategies.mp4"
+    transition: 1.5
+    transition_type: fade_to_black
+  - path: "${renders}/section-07-parametric-trap.mp4"
+    transition: 1.5
+    transition_type: fade_to_black
+  - path: "${renders}/section-08-body-vs-world.mp4"
+    transition: 1.5
+    transition_type: fade_to_black
+  - path: "${renders}/section-09-noise-cliff.mp4"
+    transition: 1.5
+    transition_type: fade_to_black
+  - path: "${renders}/section-10-out-of-distribution.mp4"
+    transition: 1.5
+    transition_type: fade_to_black
+  - path: "${renders}/section-11-outro.mp4"

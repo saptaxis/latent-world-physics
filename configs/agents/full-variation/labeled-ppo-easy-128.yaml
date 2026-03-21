@@ -1,0 +1,13 @@
+# Labeled agent + PPO on easy with 2x128 net (default ent_coef=0.01).
+# Intermediate architecture test: 2x64 reached 85%, 3x256 failed at 60%.
+# 2x128 (~32K params) tells us if the problem is capacity or depth/width.
+variant: labeled
+algo: ppo
+profile: easy
+total_steps: 3_000_000
+video_freq: 250_000
+run_dir: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/labeled-ppo-easy-128-Feb122026
+n_envs: 8
+
+# Intermediate: 2 hidden layers of 128 units (shared actor/critic, ~32K params).
+net_arch: [128, 128]

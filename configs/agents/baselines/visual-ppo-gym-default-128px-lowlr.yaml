@@ -1,0 +1,30 @@
+# Visual-blind agent + PPO on fixed Gymnasium default physics.
+# 128x128 frame resolution with lower learning rate for PPO stability.
+# The base 128px run showed borderline KL (0.056) and clip fraction (0.34).
+# This run tests whether gentler updates lead to better convergence.
+#
+# Changes from visual-ppo-gym-default-128px.yaml:
+#   learning_rate: 2.5e-4 → 1e-4
+variant: visual
+algo: ppo
+profile: gym-default
+total_steps: 5_000_000
+n_stack: 4
+frame_size: 128
+video_freq: 500_000
+early_stop_landed_pct: 90.0
+early_stop_patience: 5
+n_envs: 8
+
+# --- PPO hyperparams (Atari-style, lower LR) ---
+learning_rate: 1.0e-4
+n_steps: 128
+batch_size: 256
+n_epochs: 4
+gamma: 0.99
+gae_lambda: 0.95
+clip_range: 0.1
+ent_coef: 0.01
+
+# 2x128 MLP head after CNN features — matches Expt 1 state-vector agents.
+net_arch: [128, 128]

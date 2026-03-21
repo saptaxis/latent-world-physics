@@ -1,0 +1,570 @@
+# Article 1: "What Do RL Agents Actually Learn About Their World?"
+# PRODUCTION landscape manifest for the full video pipeline.
+#
+# Identical sections to article-1-landscape.yaml (test version).
+# Render: clipcompose compose \
+#   --manifest lunar_lander/video-manifests/article-1-full.yaml \
+#   --output .../composited/full-sections/ --render-all --workers 3 --gpu
+# Then assemble with article-1-full-assembly.yaml.
+
+video:
+  resolution: [1920, 1080]
+  fps: 30
+  background: "#1A1A1A"
+
+paths:
+  videos: "/media/hdd1/physics-priors-latent-space/lunar-lander-networks/articles/01-what-do-agents-learn/videos"
+
+colors:
+  blind: "#e04c77"
+  labeled: "#888888"
+  neutral: "#888888"
+  accent: "#B1134D"
+  text: "#D5D5D3"
+  text_secondary: "#888888"
+  highlight: "#FF4C87"
+  landed: "#50DC78"
+  crashed: "#F04646"
+
+sections:
+  # ── Section 0: Title Card ────────────────────────────────────────
+  - template: title_card
+    label: intro
+    title: "Latent World Geometry"
+    subtitle: "Article 1: What Do RL Agents\nActually Learn About Their World?"
+    duration: 4
+
+  # ── Section 1: Gravity Demo ──────────────────────────────────────
+  - template: grid_2x1
+    label: demo-gravity
+    header: "The Physics: Parameters That Shape the World"
+    subtitle: "Gravity [environment]"
+    clips:
+      - path: "${videos}/physics-demos/gravity-low.mp4"
+        annotation_side: above
+        annotations:
+          - text: "Low gravity — floats slowly"
+      - path: "${videos}/physics-demos/gravity-high.mp4"
+        annotation_side: above
+        annotations:
+          - text: "High gravity — slams down"
+
+  # ── Section 2: Wind Demo ─────────────────────────────────────────
+  - template: grid_2x1
+    label: demo-wind
+    header: "The Physics: Parameters That Shape the World"
+    subtitle: "Wind [environment]"
+    clips:
+      - path: "${videos}/physics-demos/wind-low.mp4"
+        annotation_side: above
+        annotations:
+          - text: "No wind — drops straight"
+      - path: "${videos}/physics-demos/wind-high.mp4"
+        annotation_side: above
+        annotations:
+          - text: "Strong wind — blown sideways"
+
+  # ── Section 3: Turbulence Demo ───────────────────────────────────
+  - template: grid_2x1
+    label: demo-turbulence
+    header: "The Physics: Parameters That Shape the World"
+    subtitle: "Turbulence [environment]"
+    clips:
+      - path: "${videos}/physics-demos/turbulence-low.mp4"
+        annotation_side: above
+        annotations:
+          - text: "No turbulence — smooth descent"
+      - path: "${videos}/physics-demos/turbulence-high.mp4"
+        annotation_side: above
+        annotations:
+          - text: "High turbulence — jittery wobble"
+
+  # ── Section 4: Angular Damping Demo ──────────────────────────────
+  - template: grid_2x1
+    label: demo-angular-damping
+    header: "The Physics: Parameters That Shape the World"
+    subtitle: "Angular Damping [lander]"
+    clips:
+      - path: "${videos}/physics-demos/angular_damping-low.mp4"
+        annotation_side: above
+        annotations:
+          - text: "High damping — stays upright"
+      - path: "${videos}/physics-demos/angular_damping-high.mp4"
+        annotation_side: above
+        annotations:
+          - text: "Zero damping — spins freely"
+
+  # ── Section 5: Engine Power Demo ─────────────────────────────────
+  - template: grid_2x1
+    label: demo-engine-power
+    header: "The Physics: Parameters That Shape the World"
+    subtitle: "Engine Power [lander]"
+    clips:
+      - path: "${videos}/physics-demos/engine_power-low.mp4"
+        annotation_side: above
+        annotations:
+          - text: "Weak engine — struggles"
+      - path: "${videos}/physics-demos/engine_power-high.mp4"
+        annotation_side: above
+        annotations:
+          - text: "Strong engine — hovers easily"
+
+  # ── Section 6: Grid 1 — Two Strategies (paired 2x2) ─────────────
+  - template: paired_2x2
+    label: two-strategies
+    header: "Two Strategies: How Agents Fly Differently"
+    groups:
+      - header: "LABELED — smooth arcs, anticipatory control (78% landed)"
+        clips:
+          - path: "${videos}/grid1/rendered-labeled/episode_0014.mp4"
+            annotation_side: above
+            annotations:
+              - text: "LABELED"
+                color: "#888888"
+                weight: bold
+              - text: "LANDED"
+                color: "#50DC78"
+                weight: bold
+          - path: "${videos}/grid1/rendered-labeled/episode_0052.mp4"
+            annotation_side: above
+            annotations:
+              - text: "LABELED"
+                color: "#888888"
+                weight: bold
+              - text: "LANDED"
+                color: "#50DC78"
+                weight: bold
+          - path: "${videos}/grid1/rendered-labeled/episode_0053.mp4"
+            annotation_side: above
+            annotations:
+              - text: "LABELED"
+                color: "#888888"
+                weight: bold
+              - text: "LANDED"
+                color: "#50DC78"
+                weight: bold
+          - path: "${videos}/grid1/rendered-labeled/episode_0055.mp4"
+            annotation_side: above
+            annotations:
+              - text: "LABELED"
+                color: "#888888"
+                weight: bold
+              - text: "LANDED"
+                color: "#50DC78"
+                weight: bold
+      - header: "BLIND — reactive bursts, fires by feel (89% landed)"
+        clips:
+          - path: "${videos}/grid1/rendered-blind/episode_0034.mp4"
+            annotation_side: above
+            annotations:
+              - text: "BLIND"
+                color: "#e04c77"
+                weight: bold
+              - text: "LANDED"
+                color: "#50DC78"
+                weight: bold
+          - path: "${videos}/grid1/rendered-blind/episode_0057.mp4"
+            annotation_side: above
+            annotations:
+              - text: "BLIND"
+                color: "#e04c77"
+                weight: bold
+              - text: "LANDED"
+                color: "#50DC78"
+                weight: bold
+          - path: "${videos}/grid1/rendered-blind/episode_0073.mp4"
+            annotation_side: above
+            annotations:
+              - text: "BLIND"
+                color: "#e04c77"
+                weight: bold
+              - text: "LANDED"
+                color: "#50DC78"
+                weight: bold
+          - path: "${videos}/grid1/rendered-blind/episode_0093.mp4"
+            annotation_side: above
+            annotations:
+              - text: "BLIND"
+                color: "#e04c77"
+                weight: bold
+              - text: "LANDED"
+                color: "#50DC78"
+                weight: bold
+
+  # ── Section 7: Grid 2 — Parametric Trap (3x4) ───────────────────
+  - template: grid_3x4
+    label: parametric-trap
+    header: "The Parametric Trap: Labels Are Load-Bearing"
+    subtitle: "Zero out the physics labels: the agent crashes. Shuffle them: even worse. It reads specific dimensions."
+    column_headers:
+      - "Normal labels — 78% landed"
+      - "Labels zeroed — 37% landed"
+      - "Labels shuffled — 17% landed"
+    clips:
+      # Row 1
+      - path: "${videos}/grid2/rendered-baseline/episode_0032.mp4"
+        annotation_side: left
+        annotations:
+          - text: "LABELED"
+            color: "#888888"
+            weight: bold
+          - text: "LANDED"
+            color: "#50DC78"
+            weight: bold
+      - path: "${videos}/grid2/rendered-zeroed/episode_0060.mp4"
+        annotation_side: left
+        annotations:
+          - text: "LABELED"
+            color: "#888888"
+            weight: bold
+          - text: "CRASHED"
+            color: "#F04646"
+            weight: bold
+      - path: "${videos}/grid2/rendered-shuffled/episode_0008.mp4"
+        annotation_side: left
+        annotations:
+          - text: "LABELED"
+            color: "#888888"
+            weight: bold
+          - text: "CRASHED"
+            color: "#F04646"
+            weight: bold
+      # Row 2
+      - path: "${videos}/grid2/rendered-baseline/episode_0039.mp4"
+        annotation_side: left
+        annotations:
+          - text: "LABELED"
+            color: "#888888"
+            weight: bold
+          - text: "LANDED"
+            color: "#50DC78"
+            weight: bold
+      - path: "${videos}/grid2/rendered-zeroed/episode_0070.mp4"
+        annotation_side: left
+        annotations:
+          - text: "LABELED"
+            color: "#888888"
+            weight: bold
+          - text: "CRASHED"
+            color: "#F04646"
+            weight: bold
+      - path: "${videos}/grid2/rendered-shuffled/episode_0061.mp4"
+        annotation_side: left
+        annotations:
+          - text: "LABELED"
+            color: "#888888"
+            weight: bold
+          - text: "CRASHED"
+            color: "#F04646"
+            weight: bold
+      # Row 3
+      - path: "${videos}/grid2/rendered-baseline/episode_0050.mp4"
+        annotation_side: left
+        annotations:
+          - text: "LABELED"
+            color: "#888888"
+            weight: bold
+          - text: "LANDED"
+            color: "#50DC78"
+            weight: bold
+      - path: "${videos}/grid2/rendered-zeroed/episode_0075.mp4"
+        annotation_side: left
+        annotations:
+          - text: "LABELED"
+            color: "#888888"
+            weight: bold
+          - text: "CRASHED"
+            color: "#F04646"
+            weight: bold
+      - path: "${videos}/grid2/rendered-shuffled/episode_0085.mp4"
+        annotation_side: left
+        annotations:
+          - text: "LABELED"
+            color: "#888888"
+            weight: bold
+          - text: "CRASHED"
+            color: "#F04646"
+            weight: bold
+      # Row 4
+      - path: "${videos}/grid2/rendered-baseline/episode_0054.mp4"
+        annotation_side: left
+        annotations:
+          - text: "LABELED"
+            color: "#888888"
+            weight: bold
+          - text: "LANDED"
+            color: "#50DC78"
+            weight: bold
+      - path: "${videos}/grid2/rendered-zeroed/episode_0095.mp4"
+        annotation_side: left
+        annotations:
+          - text: "LABELED"
+            color: "#888888"
+            weight: bold
+          - text: "CRASHED"
+            color: "#F04646"
+            weight: bold
+      - path: "${videos}/grid2/rendered-shuffled/episode_0086.mp4"
+        annotation_side: left
+        annotations:
+          - text: "LABELED"
+            color: "#888888"
+            weight: bold
+          - text: "CRASHED"
+            color: "#F04646"
+            weight: bold
+
+  # ── Section 8: Grid 3 — Body vs World (paired 2x2) ──────────────
+  - template: paired_2x2
+    label: body-vs-world
+    header: "Body vs World: Where Reactive Control Comes From"
+    groups:
+      - header: "Physics-only BLIND — only gravity/wind vary, flies smoothly"
+        clips:
+          - path: "${videos}/grid3/rendered-physics-only/episode_0020.mp4"
+            annotation_side: above
+            annotations:
+              - text: "BLIND"
+                color: "#e04c77"
+                weight: bold
+              - text: "LANDED"
+                color: "#50DC78"
+                weight: bold
+          - path: "${videos}/grid3/rendered-physics-only/episode_0027.mp4"
+            annotation_side: above
+            annotations:
+              - text: "BLIND"
+                color: "#e04c77"
+                weight: bold
+              - text: "LANDED"
+                color: "#50DC78"
+                weight: bold
+          - path: "${videos}/grid3/rendered-physics-only/episode_0071.mp4"
+            annotation_side: above
+            annotations:
+              - text: "BLIND"
+                color: "#e04c77"
+                weight: bold
+              - text: "LANDED"
+                color: "#50DC78"
+                weight: bold
+          - path: "${videos}/grid3/rendered-physics-only/episode_0072.mp4"
+            annotation_side: above
+            annotations:
+              - text: "BLIND"
+                color: "#e04c77"
+                weight: bold
+              - text: "LANDED"
+                color: "#50DC78"
+                weight: bold
+      - header: "Vehicle-only BLIND — body changes, switches to reactive mode"
+        clips:
+          - path: "${videos}/grid3/rendered-vehicle-only/episode_0041.mp4"
+            annotation_side: above
+            annotations:
+              - text: "BLIND"
+                color: "#e04c77"
+                weight: bold
+              - text: "LANDED"
+                color: "#50DC78"
+                weight: bold
+          - path: "${videos}/grid3/rendered-vehicle-only/episode_0056.mp4"
+            annotation_side: above
+            annotations:
+              - text: "BLIND"
+                color: "#e04c77"
+                weight: bold
+              - text: "LANDED"
+                color: "#50DC78"
+                weight: bold
+          - path: "${videos}/grid3/rendered-vehicle-only/episode_0058.mp4"
+            annotation_side: above
+            annotations:
+              - text: "BLIND"
+                color: "#e04c77"
+                weight: bold
+              - text: "LANDED"
+                color: "#50DC78"
+                weight: bold
+          - path: "${videos}/grid3/rendered-vehicle-only/episode_0089.mp4"
+            annotation_side: above
+            annotations:
+              - text: "BLIND"
+                color: "#e04c77"
+                weight: bold
+              - text: "LANDED"
+                color: "#50DC78"
+                weight: bold
+
+  # ── Section 9: Grid 4 — Noise Cliff (paired 2x2) ────────────────
+  - template: paired_2x2
+    label: noise-cliff
+    header: "The Noise Cliff: Tiny Errors, Catastrophic Failure"
+    subtitle: "Adding just 10% Gaussian noise to physics labels collapses landing rate from 94% to 5%."
+    groups:
+      - header: "Clean labels — 94% landed"
+        clips:
+          - path: "${videos}/grid4/rendered-clean/episode_0014.mp4"
+            annotation_side: above
+            annotations:
+              - text: "LABELED"
+                color: "#888888"
+                weight: bold
+              - text: "LANDED"
+                color: "#50DC78"
+                weight: bold
+          - path: "${videos}/grid4/rendered-clean/episode_0032.mp4"
+            annotation_side: above
+            annotations:
+              - text: "LABELED"
+                color: "#888888"
+                weight: bold
+              - text: "LANDED"
+                color: "#50DC78"
+                weight: bold
+          - path: "${videos}/grid4/rendered-clean/episode_0067.mp4"
+            annotation_side: above
+            annotations:
+              - text: "LABELED"
+                color: "#888888"
+                weight: bold
+              - text: "LANDED"
+                color: "#50DC78"
+                weight: bold
+          - path: "${videos}/grid4/rendered-clean/episode_0077.mp4"
+            annotation_side: above
+            annotations:
+              - text: "LABELED"
+                color: "#888888"
+                weight: bold
+              - text: "LANDED"
+                color: "#50DC78"
+                weight: bold
+      - header: "Noisy labels (σ=0.1) — 5% landed"
+        clips:
+          - path: "${videos}/grid4/rendered-noisy/episode_0020.mp4"
+            annotation_side: above
+            annotations:
+              - text: "LABELED"
+                color: "#888888"
+                weight: bold
+              - text: "CRASHED"
+                color: "#F04646"
+                weight: bold
+          - path: "${videos}/grid4/rendered-noisy/episode_0046.mp4"
+            annotation_side: above
+            annotations:
+              - text: "LABELED"
+                color: "#888888"
+                weight: bold
+              - text: "CRASHED"
+                color: "#F04646"
+                weight: bold
+          - path: "${videos}/grid4/rendered-noisy/episode_0053.mp4"
+            annotation_side: above
+            annotations:
+              - text: "LABELED"
+                color: "#888888"
+                weight: bold
+              - text: "CRASHED"
+                color: "#F04646"
+                weight: bold
+          - path: "${videos}/grid4/rendered-noisy/episode_0092.mp4"
+            annotation_side: above
+            annotations:
+              - text: "LABELED"
+                color: "#888888"
+                weight: bold
+              - text: "CRASHED"
+                color: "#F04646"
+                weight: bold
+
+  # ── Section 10: Grid 5 — Out of Distribution (paired 2x2) ──────
+  - template: paired_2x2
+    label: out-of-distribution
+    header: "Out of Distribution: The Gap Explodes"
+    subtitle: "Trained on easy physics, tested on hard."
+    groups:
+      - header: "LABELED collapses — 19% landed"
+        clips:
+          - path: "${videos}/grid5-ood/rendered-labeled/episode_0013.mp4"
+            annotation_side: above
+            annotations:
+              - text: "LABELED"
+                color: "#888888"
+                weight: bold
+              - text: "CRASHED"
+                color: "#F04646"
+                weight: bold
+          - path: "${videos}/grid5-ood/rendered-labeled/episode_0018.mp4"
+            annotation_side: above
+            annotations:
+              - text: "LABELED"
+                color: "#888888"
+                weight: bold
+              - text: "CRASHED"
+                color: "#F04646"
+                weight: bold
+          - path: "${videos}/grid5-ood/rendered-labeled/episode_0061.mp4"
+            annotation_side: above
+            annotations:
+              - text: "LABELED"
+                color: "#888888"
+                weight: bold
+              - text: "CRASHED"
+                color: "#F04646"
+                weight: bold
+          - path: "${videos}/grid5-ood/rendered-labeled/episode_0068.mp4"
+            annotation_side: above
+            annotations:
+              - text: "LABELED"
+                color: "#888888"
+                weight: bold
+              - text: "CRASHED"
+                color: "#F04646"
+                weight: bold
+      - header: "BLIND degrades gracefully — 41% landed"
+        clips:
+          - path: "${videos}/grid5-ood/rendered-blind/episode_0008.mp4"
+            annotation_side: above
+            annotations:
+              - text: "BLIND"
+                color: "#e04c77"
+                weight: bold
+              - text: "LANDED"
+                color: "#50DC78"
+                weight: bold
+          - path: "${videos}/grid5-ood/rendered-blind/episode_0035.mp4"
+            annotation_side: above
+            annotations:
+              - text: "BLIND"
+                color: "#e04c77"
+                weight: bold
+              - text: "LANDED"
+                color: "#50DC78"
+                weight: bold
+          - path: "${videos}/grid5-ood/rendered-blind/episode_0056.mp4"
+            annotation_side: above
+            annotations:
+              - text: "BLIND"
+                color: "#e04c77"
+                weight: bold
+              - text: "LANDED"
+                color: "#50DC78"
+                weight: bold
+          - path: "${videos}/grid5-ood/rendered-blind/episode_0080.mp4"
+            annotation_side: above
+            annotations:
+              - text: "BLIND"
+                color: "#e04c77"
+                weight: bold
+              - text: "LANDED"
+                color: "#50DC78"
+                weight: bold
+
+  # ── Section 11: Outro ────────────────────────────────────────────
+  - template: title_card
+    label: outro
+    title: "More information doesn't always help.\nThe BLIND agent wins."
+    subtitle: "Read the full article at 7rishi.io"
+    duration: 4

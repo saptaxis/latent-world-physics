@@ -1,0 +1,16 @@
+# Blind agent + PPO on easy with reduced entropy bonus (ent_coef=0.001).
+# The research comparison that matters: blind vs labeled on domain randomization.
+# Uses lowent (0.001) based on labeled ent_coef sweep results.
+variant: blind
+algo: ppo
+profile: easy
+total_steps: 3_000_000
+video_freq: 250_000
+run_dir: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/blind-ppo-easy-lowent-256-Feb122026
+n_envs: 8
+ent_coef: 0.001
+
+# Research network: separate 3x256 actor and critic (~200K params).
+net_arch:
+  pi: [256, 256, 256]
+  vf: [256, 256, 256]

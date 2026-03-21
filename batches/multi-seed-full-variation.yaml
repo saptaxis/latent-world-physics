@@ -1,0 +1,16 @@
+# Multi-seed validation: full variation (all 7 params randomized).
+# Primary condition for the blind > labeled claim.
+# Use with --seeds and --output-base:
+#   python lunar_lander/scripts/train_all_agents.py \
+#       --batch multi-seed-full-variation \
+#       --batch multi-seed-full-variation \
+#       --seeds 123,456,789,1024 \
+#       --output-base /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral
+#   (seed=42 already exists as symlinks in the output tree)
+runs:
+  # Easy difficulty (blind 89% vs labeled 83% on single seed)
+  - full-variation/labeled-ppo-easy-128-lowent
+  - full-variation/blind-ppo-easy-128-lowent
+  # Medium difficulty (blind 75% vs labeled 77% — near parity, needs seeds)
+  - full-variation/labeled-ppo-medium-128-lowent
+  - full-variation/blind-ppo-medium-128-lowent

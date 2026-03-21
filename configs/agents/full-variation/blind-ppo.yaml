@@ -1,0 +1,8 @@
+# Blind agent + PPO: no physics params (15D obs = kinematic + rays).
+# Must infer physics from behavioral cues.
+variant: blind
+algo: ppo
+profile: easy
+total_steps: 3_000_000
+video_freq: 500_000
+run_dir: runs/lunar_lander/blind-ppo

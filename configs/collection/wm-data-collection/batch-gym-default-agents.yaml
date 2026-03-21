@@ -1,0 +1,37 @@
+# Agent-only batch: gym-default physics (128-lowent agents, 2 seeds each).
+# Heuristic + random already collected (10K each) from prior run.
+#
+# Dataset composition (agent sources only):
+#    6K - blind agents (2 seeds × 3K)
+#    5K - labeled agents (2 seeds × 2.5K)
+#    5K - noisy expert from blind (2 seeds × 2.5K)
+#    5K - noisy expert from labeled (2 seeds × 2.5K)
+#  -----
+#  ~21K agent episodes
+#
+# Combined with existing heuristic (10K) + random (10K) = ~41K total.
+
+output_base: /media/hdd1/physics-priors-latent-space/lunar-lander-data/world_model_data/gym-default
+
+physics_sampling:
+  ranges:
+    gravity: [-10.0, -10.0]
+    main_engine_power: [13.0, 13.0]
+    side_engine_power: [0.6, 0.6]
+    lander_density: [5.0, 5.0]
+    angular_damping: [0.0, 0.0]
+    wind_power: [15.0, 15.0]
+    turbulence_power: [1.5, 1.5]
+
+collections:
+  - config: gym-default-blind-s42.yaml
+  - config: gym-default-blind-s123.yaml
+
+  - config: gym-default-labeled-s42.yaml
+  - config: gym-default-labeled-s123.yaml
+
+  - config: gym-default-noisy-blind-s42.yaml
+  - config: gym-default-noisy-blind-s123.yaml
+
+  - config: gym-default-noisy-labeled-s42.yaml
+  - config: gym-default-noisy-labeled-s123.yaml

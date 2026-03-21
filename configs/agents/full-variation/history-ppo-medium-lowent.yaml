@@ -1,0 +1,15 @@
+# History agent + PPO on medium with 3x256 net, reduced entropy (ent_coef=0.001).
+# labeled: 71%, blind: 71%. Perfectly tied — interesting data point for history.
+variant: history
+algo: ppo
+profile: medium
+total_steps: 4_000_000
+video_freq: 250_000
+run_dir: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/full-variation/history-ppo-medium-lowent-256
+n_envs: 8
+ent_coef: 0.001
+history_k: 8
+
+net_arch:
+  pi: [256, 256, 256]
+  vf: [256, 256, 256]

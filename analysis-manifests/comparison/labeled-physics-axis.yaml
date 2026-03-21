@@ -1,0 +1,21 @@
+# Comparison 3: Labeled agents across isolated physics axes.
+# Sanity check — labeled should perform roughly equally across all three.
+# If it doesn't, that reveals axis difficulty independent of inference.
+experiment: labeled-physics-axis
+description: "Labeled agent performance across isolated physics axes (sanity check)"
+output_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/analysis/cross-config/labeled-physics-axis
+
+comparisons:
+  labeled-across-axes:
+    condition: cross-axis
+    profile: mixed
+    configs:
+      labeled-gravity:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/gravity-only/labeled-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024]
+      labeled-wind:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/wind-only/labeled-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024]
+      labeled-turbulence:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/turbulence-only/labeled-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024]

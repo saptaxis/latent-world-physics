@@ -1,0 +1,13 @@
+# Full blind sweep on medium domain randomization (Feb 12).
+# 7 runs at 4M steps, ~45min each, ~5 hours total.
+#
+# Mirrors the labeled medium sweep. Together they test whether
+# blind > labeled generalizes from easy to medium DR.
+runs:
+  - blind-ppo-medium-small
+  - blind-ppo-medium-small-noent
+  - blind-ppo-medium-128
+  - blind-ppo-medium-128-lowent
+  - blind-ppo-medium
+  - blind-ppo-medium-lowent
+  - blind-ppo-medium-noent

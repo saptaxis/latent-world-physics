@@ -1,0 +1,19 @@
+# World model data collection: heuristic controller
+# Part of 100K dataset (heuristic contributes 20K episodes)
+
+source_type: heuristic
+n_episodes: 20000
+seed: 0
+deterministic: true
+save_frames: false
+
+physics_sampling:
+  method: uniform
+  ranges:
+    gravity: [-12.0, -2.0]
+    main_engine_power: [5.0, 25.0]
+    side_engine_power: [0.2, 1.5]
+    lander_density: [2.5, 10.0]
+    angular_damping: [0.0, 5.0]
+    wind_power: [0.0, 30.0]
+    turbulence_power: [0.0, 5.0]

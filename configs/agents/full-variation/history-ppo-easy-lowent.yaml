@@ -1,0 +1,17 @@
+# History agent + PPO on easy with 3x256 net, reduced entropy (ent_coef=0.001).
+# labeled: 60%, blind: 78%. Blind already outperforms labeled here.
+# Does history's temporal context help or hurt the bigger net?
+variant: history
+algo: ppo
+profile: easy
+total_steps: 4_000_000
+video_freq: 250_000
+run_dir: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/full-variation/history-ppo-easy-lowent-256
+n_envs: 8
+ent_coef: 0.001
+history_k: 8
+
+# Research network: separate 3x256 actor and critic (~200K params).
+net_arch:
+  pi: [256, 256, 256]
+  vf: [256, 256, 256]

@@ -1,0 +1,12 @@
+# History agent + PPO on medium with 2x64 net (default ent_coef=0.01).
+# labeled: 73%, blind: 42%. Blind-small with default ent fails on medium too.
+variant: history
+algo: ppo
+profile: medium
+total_steps: 4_000_000
+video_freq: 250_000
+run_dir: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/full-variation/history-ppo-medium-small
+n_envs: 8
+history_k: 8
+
+net_arch: [64, 64]

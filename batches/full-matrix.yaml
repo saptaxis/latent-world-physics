@@ -1,0 +1,12 @@
+# Everything: standard agents + gym-default baseline + small-network diagnostics.
+runs:
+  - labeled-ppo-easy
+  - blind-ppo
+  - history-ppo
+  - labeled-sac
+  - blind-sac
+  - history-sac
+  - labeled-ppo-gym-default
+  - labeled-ppo-easy-small
+  - blind-ppo-small
+  - labeled-ppo-gym-default-small

@@ -1,0 +1,37 @@
+# Supplemental batch: easy physics profile (TWR >= 8, no wind/turbulence)
+# Adds density in the regime where inner RL agents will train
+#
+# Reuses the same collection configs as the full batch — the batch-level
+# physics_sampling override replaces per-config physics ranges at load time.
+#
+# Dataset composition:
+#   30K - blind agents (5 seeds × 6K)
+#   20K - labeled agents (4 seeds × 5K)
+#   20K - heuristic controller
+#   20K - random policy
+#   10K - noisy experts (2 seeds × 5K)
+#  -----
+#  100K total episodes
+
+output_base: /media/hdd1/physics-priors-latent-space/lunar-lander-data/world_model_data/easy
+
+physics_sampling:
+  profile: easy
+
+collections:
+  - config: blind-s42.yaml
+  - config: blind-s123.yaml
+  - config: blind-s456.yaml
+  - config: blind-s789.yaml
+  - config: blind-s1024.yaml
+
+  - config: labeled-s42.yaml
+  - config: labeled-s123.yaml
+  - config: labeled-s456.yaml
+  - config: labeled-s789.yaml
+
+  - config: heuristic.yaml
+  - config: random.yaml
+
+  - config: noisy-expert-s42.yaml
+  - config: noisy-expert-s123.yaml

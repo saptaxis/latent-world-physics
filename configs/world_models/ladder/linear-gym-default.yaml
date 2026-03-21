@@ -1,0 +1,30 @@
+# Level 0: Linear baseline on full gym-default mix (41K episodes)
+# Expected: learns gravity bias on vy, inertial propagation, basic damping.
+# Fails on thrust vectoring (sin/cos) and contact dynamics.
+# ~160K steps/epoch, 50 epochs = 8M total steps.
+arch: linear
+arch_params: {}
+prediction: delta
+training_mode: single_step
+rollout_k: 1
+data_mix: policy
+data_path: /media/hdd1/physics-priors-latent-space/lunar-lander-data/world_model_data/gym-default
+state_dim: 6
+dim_names: [x, y, vx, vy, angle, angular_vel]
+dim_weights: inv_var
+subsample: 5
+action_dim: 2
+lr: 0.001
+batch_size: 64
+epochs: 50
+val_fraction: 0.1
+# Callback frequencies
+val_every: 2000
+patience: 10
+ckpt_every: 5000
+plot_every: 10000
+grad_norm_every: 200
+rollout_every: 10000
+rollout_n_rollouts: 20
+grad_clip: 1.0
+run_dir: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/world-model-ladder-runs

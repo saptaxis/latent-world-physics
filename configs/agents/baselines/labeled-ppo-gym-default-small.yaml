@@ -1,0 +1,11 @@
+# Double control: fixed Gymnasium physics + RL Zoo default 2x64 network.
+# Closest to standard LunarLander-v3 training.
+# Should solve reliably in ~1M steps — if not, something else is wrong.
+variant: labeled
+algo: ppo
+profile: gym-default
+total_steps: 1_000_000
+video_freq: 250_000
+run_dir: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/labeled-ppo-gym-default-small-2-Feb122026
+net_arch: [64, 64]
+n_envs: 8

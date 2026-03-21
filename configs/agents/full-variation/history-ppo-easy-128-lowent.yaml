@@ -1,0 +1,15 @@
+# History agent + PPO on easy with 2x128 net AND reduced entropy (ent_coef=0.001).
+# labeled: 83%, blind: 89%. The sweet spot architecture for labeled/blind.
+# Key question: does temporal context push history past blind's 89%?
+variant: history
+algo: ppo
+profile: easy
+total_steps: 4_000_000
+video_freq: 250_000
+run_dir: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/full-variation/history-ppo-easy-128-lowent
+n_envs: 8
+ent_coef: 0.001
+history_k: 8
+
+# Intermediate: 2 hidden layers of 128 units (shared actor/critic).
+net_arch: [128, 128]

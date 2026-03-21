@@ -1,0 +1,8 @@
+# Blind agent + PPO with RL Zoo default network (2x64).
+variant: blind
+algo: ppo
+profile: easy
+total_steps: 3_000_000
+video_freq: 500_000
+run_dir: runs/lunar_lander/blind-ppo-small
+net_arch: [64, 64]

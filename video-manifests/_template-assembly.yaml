@@ -1,0 +1,46 @@
+# Assembly manifest template — merges rendered sections into one video.
+# Uses native ffmpeg (no moviepy frame loop). Fast.
+#
+# Usage:
+#   clipcompose assemble \
+#       --manifest lunar_lander/video-manifests/my-assembly.yaml \
+#       --output final.mp4
+#
+# Two-step workflow:
+#   1. Render sections:  clipcompose compose --render-all --output /tmp/renders/
+#   2. Assemble:         clipcompose assemble --manifest assembly.yaml --output final.mp4
+#
+# Transition types:
+#   crossfade      — clips overlap, cross-dissolve between them.
+#   fade_to_black  — no overlap. Outgoing fades out over T/2,
+#                    incoming fades in over T/2. Clips play full duration.
+#   hard cut       — transition: 0 (any type). No effect, instant switch.
+
+video:
+  fps: 30
+  transition: 1.5              # default transition duration (seconds)
+  transition_type: fade_to_black  # default type: crossfade | fade_to_black
+
+# Path variables — referenced as ${name} in section paths.
+# paths:
+#   renders: "/path/to/rendered/sections"
+
+# Each section's transition controls how it hands off to the NEXT section.
+# The last section's transition is ignored (nothing follows it).
+# Omit transition/transition_type to use the video-level defaults.
+
+sections:
+  # - path: "${renders}/section-00-intro.mp4"
+  #   transition: 1.5                # optional, overrides video default
+  #   transition_type: fade_to_black  # optional, overrides video default
+
+  # - path: "${renders}/section-01-demo.mp4"
+  #   transition: 0.5
+  #   transition_type: crossfade
+
+  # - path: "${renders}/section-02-demo.mp4"
+  #   transition: 0                   # hard cut (transition_type ignored)
+  #   transition_type: crossfade
+
+  # - path: "${renders}/section-03-outro.mp4"
+  #   # last section — transition ignored

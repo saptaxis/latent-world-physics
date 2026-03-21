@@ -1,0 +1,29 @@
+# Visual-blind agent + PPO on fixed Gymnasium default physics.
+# 128x128 frame resolution — larger than standard 84x84 to test whether
+# the lander and landing pad are too small at 84x84 for the CNN to learn.
+# NatureCNN flatten dim: 9216 (vs 3136 at 84x84), total CNN params: ~4.8M.
+#
+# PPO hyperparams: RL Zoo Atari preset (same as 84x84 for fair comparison).
+variant: visual
+algo: ppo
+profile: gym-default
+total_steps: 5_000_000
+n_stack: 4
+frame_size: 128
+video_freq: 500_000
+early_stop_landed_pct: 90.0
+early_stop_patience: 5
+n_envs: 8
+
+# --- PPO hyperparams (RL Zoo Atari-style for CNN) ---
+learning_rate: 2.5e-4
+n_steps: 128
+batch_size: 256
+n_epochs: 4
+gamma: 0.99
+gae_lambda: 0.95
+clip_range: 0.1
+ent_coef: 0.01
+
+# 2x128 MLP head after CNN features — matches Expt 1 state-vector agents.
+net_arch: [128, 128]

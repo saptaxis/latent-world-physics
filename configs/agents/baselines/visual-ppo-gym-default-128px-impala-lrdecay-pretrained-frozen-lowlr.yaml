@@ -1,0 +1,32 @@
+# Pre-trained encoder: FROZEN + LOW LR.
+# Same as pretrained-frozen but 5e-5 LR (5x lower) to reduce forgetting dip.
+# The MLP head has a simple job on stable features — doesn't need aggressive LR.
+variant: visual
+algo: ppo
+profile: gym-default
+total_steps: 10_000_000
+n_stack: 4
+frame_size: 128
+cnn_backbone: impala
+video_freq: 500_000
+early_stop_landed_pct: 95.0
+early_stop_patience: 5
+n_envs: 8
+
+# --- PPO hyperparams ---
+learning_rate: 5.0e-5
+# No lr_schedule — flat constant LR. The frozen encoder makes the MLP's
+# job simple enough that 5e-5 constant should be stable throughout.
+n_steps: 128
+batch_size: 256
+n_epochs: 4
+gamma: 0.99
+gae_lambda: 0.95
+clip_range: 0.1
+ent_coef: 0.01
+
+net_arch: [128, 128]
+
+# --- Pre-trained encoder ---
+encoder_weights: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/encoder-pretrain/run1/best_encoder.pt
+freeze_encoder: true

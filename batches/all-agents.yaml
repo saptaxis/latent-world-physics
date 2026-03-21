@@ -1,0 +1,8 @@
+# Standard 6-run training matrix: 3 variants x 2 algorithms.
+runs:
+  - labeled-ppo-easy
+  - blind-ppo
+  - history-ppo
+  - labeled-sac
+  - blind-sac
+  - history-sac

@@ -1,0 +1,16 @@
+# History agent + PPO on medium with 3x256 net, entropy bonus REMOVED.
+# labeled: 64%, blind: 87%. Blind-noent-256 is the best 3x256 result on medium.
+# History may benefit from noent here — the 120D input gives more signal to exploit.
+variant: history
+algo: ppo
+profile: medium
+total_steps: 4_000_000
+video_freq: 250_000
+run_dir: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/full-variation/history-ppo-medium-noent-256
+n_envs: 8
+ent_coef: 0.0
+history_k: 8
+
+net_arch:
+  pi: [256, 256, 256]
+  vf: [256, 256, 256]

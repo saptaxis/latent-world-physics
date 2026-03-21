@@ -1,0 +1,12 @@
+# Blind medium full-variation sweep (7 runs) + labeled medium noent (1 run).
+# Fills the remaining gaps in the training matrix.
+# 8 runs at 4M steps each, ~45min each, ~6 hours total.
+runs:
+  - full-variation/labeled-ppo-medium-noent
+  - full-variation/blind-ppo-medium-small
+  - full-variation/blind-ppo-medium-small-noent
+  - full-variation/blind-ppo-medium-128
+  - full-variation/blind-ppo-medium-128-lowent
+  - full-variation/blind-ppo-medium
+  - full-variation/blind-ppo-medium-lowent
+  - full-variation/blind-ppo-medium-noent

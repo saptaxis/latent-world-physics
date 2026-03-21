@@ -1,0 +1,15 @@
+# Blind agent + PPO on hard domain randomization.
+# No physics params in obs (15D). Must infer physics from behavioral cues.
+# Hard = widest physics ranges. Many configs near edge of controllability.
+variant: blind
+algo: ppo
+profile: hard
+total_steps: 3_000_000
+video_freq: 250_000
+run_dir: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/blind-ppo-hard-256-Feb122026
+n_envs: 8
+
+# Research network: separate 3x256 actor and critic (~200K params).
+net_arch:
+  pi: [256, 256, 256]
+  vf: [256, 256, 256]

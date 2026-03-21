@@ -1,0 +1,5 @@
+# All 3 agent variants with PPO.
+runs:
+  - labeled-ppo-easy
+  - blind-ppo
+  - history-ppo

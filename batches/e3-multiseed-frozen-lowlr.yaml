@@ -1,0 +1,20 @@
+# E3 multi-seed: kinematic frozen low-LR (best visual config).
+# Matches Expt 1 seeds for direct comparison.
+#
+# N=3 first (s42 already done):
+#   python lunar_lander/scripts/train_all_agents.py \
+#       --batch e3-multiseed-frozen-lowlr \
+#       --seeds 123,456 \
+#       --output-base /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/gym-default \
+#       --resume
+#
+# N=10 (add remaining seeds):
+#   python lunar_lander/scripts/train_all_agents.py \
+#       --batch e3-multiseed-frozen-lowlr \
+#       --seeds 789,1024,2048,4096,8192,16384,32768 \
+#       --output-base /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/gym-default \
+#       --resume
+#
+# Expt 1 seeds: 42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768
+runs:
+  - gym-default/visual-ppo-gym-default-128px-impala-lrdecay-pretrained-frozen-lowlr

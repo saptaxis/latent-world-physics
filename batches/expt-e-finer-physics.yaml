@@ -1,0 +1,31 @@
+# Experiment E: Finer physics-only conditions.
+# Separates physics-only into gravity-only, wind-only, turbulence-only.
+# N=5 per sub-condition, labeled + blind = 6 configs × 5 seeds = 30 runs.
+#
+# Each run: ~65 min (4M steps). Total: ~33h sequential.
+# With 2 parallel terminals: ~17h (overnight).
+#
+# Run:
+#   Terminal 1:
+#   python lunar_lander/scripts/train_all_agents.py \
+#       --batch expt-e-finer-physics \
+#       --seeds 42,123,456 \
+#       --output-base /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral \
+#       --resume
+#
+#   Terminal 2:
+#   python lunar_lander/scripts/train_all_agents.py \
+#       --batch expt-e-finer-physics \
+#       --seeds 789,1024 \
+#       --output-base /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral \
+#       --resume
+runs:
+  # === GRAVITY-ONLY (directly observable from acceleration) ===
+  - gravity-only/labeled-ppo-easy-128-lowent
+  - gravity-only/blind-ppo-easy-128-lowent
+  # === WIND-ONLY (steady lateral force — harder to infer?) ===
+  - wind-only/labeled-ppo-easy-128-lowent
+  - wind-only/blind-ppo-easy-128-lowent
+  # === TURBULENCE-ONLY (stochastic noise — hardest to infer?) ===
+  - turbulence-only/labeled-ppo-easy-128-lowent
+  - turbulence-only/blind-ppo-easy-128-lowent

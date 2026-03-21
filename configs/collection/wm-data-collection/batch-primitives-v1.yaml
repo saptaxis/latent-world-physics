@@ -1,0 +1,42 @@
+# Primitive trajectory collection v1: clean physics primitives only.
+#
+# Includes primitives where the physics signal is clean and the lander
+# doesn't immediately crash from rotational instability:
+#   - Free fall (gravity only, no actions)
+#   - Impulse (brief thrust, short enough to not compound rotation)
+#   - Ground contact (replay_to_landing, lander already on ground)
+#
+# Skipped (unstable under open-loop control — lander rotates and crashes):
+#   - constant-main-thrust-* (4 configs)
+#   - constant-side-thrust-* (4 configs)
+#   - angled-thrust-* (2 configs)
+#   - combined-* (2 configs)
+#   - controlled-descent
+#   - direction-reversal-side
+#   - hover-equilibrium
+# These are really *control* primitives that need active stabilization.
+# The random-policy data already has plenty of "thrust while tilted" examples.
+# May revisit with stabilization or zeroed initial angle later.
+#
+# Total: 7 configs × 2,000 episodes = 14,000 episodes (~1.7M steps)
+# Seeds offset by 10K per config to decorrelate terrain.
+# Runtime: ~30-40 min with --workers 4
+
+output_base: /media/hdd1/physics-priors-latent-space/lunar-lander-data/world_model_data/primitives-v1
+
+collections:
+  # --- Free fall: pure gravity ---
+  - config: primitives/free-fall.yaml
+
+  # --- Impulse: brief force response ---
+  - config: primitives/impulse-main.yaml
+  - config: primitives/impulse-side.yaml
+
+  # --- Ground contact: on-ground dynamics ---
+  - config: primitives/ground-stationary.yaml
+  - config: primitives/ground-liftoff.yaml
+  - config: primitives/ground-side-thrust.yaml
+  - config: primitives/ground-thrust-sweep.yaml
+
+  # --- Ground contact with physics variation ---
+  # (same physics_sampling as individual configs — gym-default)
