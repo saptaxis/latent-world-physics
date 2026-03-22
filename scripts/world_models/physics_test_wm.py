@@ -43,7 +43,6 @@ import torch
 from lwp.wm.physics_tests import (
     MANEUVERS, ALL_MANEUVERS, run_physics_tests, run_maneuver_test,
     override_maneuver_duration,
-    ContextMLPAdapter, GRUAdapter,
 )
 from lwp.wm.physics_test_report import (
     save_json_report, print_console_summary,
@@ -159,48 +158,7 @@ def main():
         )
 
     else:
-        # --- lwg model path ---
-        from lwp.wm.diagnostics import (
-            _load_config, _build_model_from_config,
-        )
-
-        run_dir = Path(args.run_dir)
-        print(f"\n  Loading model from {run_dir}...")
-        cfg = _load_config(run_dir)
-        model = _build_model_from_config(cfg)
-        ckpt_path = run_dir / "checkpoints" / "best.pt"
-        ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
-        model.load_state_dict(ckpt["model_state_dict"])
-        model.eval()
-        input_mean = ckpt.get("input_mean")
-        input_std = ckpt.get("input_std")
-        if input_mean is not None:
-            print(f"  Input normalization: loaded from checkpoint")
-        if cfg.architecture == "context_mlp":
-            print(f"  Model: {cfg.architecture}, supervision={cfg.supervision}, "
-                  f"z_dim={cfg.z_dim}, context_k={cfg.context_k}")
-        elif cfg.architecture == "gru_world_model":
-            mc = cfg.model_config or {}
-            print(f"  Model: {cfg.architecture}, supervision={cfg.supervision}, "
-                  f"z_dim={mc.get('z_dim')}, hidden_dim={mc.get('hidden_dim')}")
-
-        if cfg.architecture == "context_mlp":
-            adapter = ContextMLPAdapter(
-                context_k=cfg.context_k,
-                supervision=cfg.supervision,
-                prediction_target=cfg.prediction_target,
-            )
-        elif cfg.architecture == "gru_world_model":
-            adapter = GRUAdapter(
-                supervision=cfg.supervision,
-                input_mean=input_mean, input_std=input_std,
-            )
-        else:
-            raise ValueError(f"No adapter for architecture: {cfg.architecture}")
-
-        run_name = cfg.run_name
-        model_subsample = 1  # lwg models always trained at 50 FPS
-        output_dir = Path(args.output_dir) if args.output_dir else run_dir / "physics_tests"
+        parser.error("--ladder-checkpoint is required.")
 
     # -- Load or generate episodes --
     branch_offset: int | None = None  # None = use adapter's context_k
