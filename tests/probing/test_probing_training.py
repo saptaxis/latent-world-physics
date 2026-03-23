@@ -5,6 +5,7 @@ import pytest
 
 from lwp.probing.training import (
     train_single_probe,
+    train_single_mlp_probe,
     train_all_probes,
 )
 
@@ -155,3 +156,138 @@ class TestTrainAllProbes:
         assert len(result["L1"]) == 2
         assert "gravity" in result["L1"]
         assert "twr" in result["L1"]
+
+
+def _make_synthetic_nonlinear_data(n_episodes=20, steps_per_episode=50, hidden_dim=128):
+    """Create synthetic data with a known nonlinear relationship.
+
+    Target = sin(x[:,0]) + x[:,1]². Linear probe can't fit this well,
+    MLP probe should achieve high R².
+    """
+    rng = np.random.default_rng(42)
+    n_total = n_episodes * steps_per_episode
+    activations = rng.standard_normal((n_total, hidden_dim)).astype(np.float32)
+    target = (np.sin(activations[:, 0]) + activations[:, 1] ** 2).astype(np.float32)
+    target += rng.normal(0, 0.05, n_total).astype(np.float32)
+    episode_ids = np.repeat(np.arange(n_episodes), steps_per_episode).astype(np.int32)
+    return activations, target, episode_ids
+
+
+class TestTrainSingleMlpProbe:
+    def test_returns_expected_keys(self):
+        acts, target, ep_ids = _make_synthetic_probe_data()
+        result = train_single_mlp_probe(acts, target, ep_ids)
+        assert "r2_mean" in result
+        assert "r2_std" in result
+        assert "r2_folds" in result
+        assert "hidden_sizes" in result
+        assert "probe_type" in result
+        assert result["probe_type"] == "mlp"
+        # MLP probes should NOT have linear-specific keys
+        assert "coefficients" not in result
+        assert "top_units" not in result
+        assert "top_weights" not in result
+        assert "intercept" not in result
+
+    def test_high_r2_for_linear_target(self):
+        """MLP should do at least as well as linear on a linear relationship."""
+        acts, target, ep_ids = _make_synthetic_probe_data()
+        result = train_single_mlp_probe(acts, target, ep_ids)
+        assert result["r2_mean"] > 0.8
+
+    def test_high_r2_for_nonlinear_target(self):
+        """MLP should capture nonlinear relationships that linear probes miss."""
+        acts, target, ep_ids = _make_synthetic_nonlinear_data()
+        mlp_result = train_single_mlp_probe(acts, target, ep_ids)
+        linear_result = train_single_probe(acts, target, ep_ids)
+        # MLP should substantially beat linear on nonlinear data
+        assert mlp_result["r2_mean"] > linear_result["r2_mean"] + 0.1
+
+    def test_low_r2_for_random_target(self):
+        rng = np.random.default_rng(99)
+        acts = rng.standard_normal((1000, 128)).astype(np.float32)
+        target = rng.standard_normal(1000).astype(np.float32)
+        ep_ids = np.repeat(np.arange(20), 50).astype(np.int32)
+        result = train_single_mlp_probe(acts, target, ep_ids)
+        assert result["r2_mean"] < 0.1
+
+    def test_five_folds_by_default(self):
+        acts, target, ep_ids = _make_synthetic_probe_data()
+        result = train_single_mlp_probe(acts, target, ep_ids)
+        assert len(result["r2_folds"]) == 5
+
+    def test_custom_hidden_sizes(self):
+        acts, target, ep_ids = _make_synthetic_probe_data()
+        result = train_single_mlp_probe(acts, target, ep_ids, hidden_sizes=(32, 16))
+        assert result["hidden_sizes"] == (32, 16)
+
+
+class TestTrainAllProbesMultiType:
+    """Tests for the probe_types parameter on train_all_probes."""
+
+    def _make_data(self):
+        rng = np.random.default_rng(42)
+        n = 1000
+        return {
+            "activations_L1": rng.standard_normal((n, 16)).astype(np.float32),
+            "activations_L2": rng.standard_normal((n, 16)).astype(np.float32),
+            "physics_params": rng.standard_normal((n, 7)).astype(np.float32),
+            "behavioral": rng.standard_normal((n, 5)).astype(np.float32),
+            "episode_ids": np.repeat(np.arange(20), 50).astype(np.int32),
+        }
+
+    def test_backward_compatible_default(self):
+        """Default probe_types=("linear",) returns same structure as before."""
+        data = self._make_data()
+        result, coefficients = train_all_probes(data)
+        # Same flat structure: {layer: {target: {...}}}
+        assert "L1" in result
+        assert "L2" in result
+        assert len(result["L1"]) == 12
+        # Coefficients present for linear
+        assert "L1/gravity" in coefficients
+
+    def test_mlp_only(self):
+        """probe_types=("mlp",) works, no coefficients."""
+        data = self._make_data()
+        result, coefficients = train_all_probes(
+            data, probe_types=("mlp",), targets=["gravity", "twr"],
+        )
+        # Flat structure when single type
+        assert "L1" in result
+        assert "gravity" in result["L1"]
+        assert result["L1"]["gravity"]["probe_type"] == "mlp"
+        # No coefficients for MLP probes
+        assert len(coefficients) == 0
+
+    def test_both_probe_types(self):
+        """probe_types=("linear", "mlp") nests results by type."""
+        data = self._make_data()
+        result, coefficients = train_all_probes(
+            data, probe_types=("linear", "mlp"), targets=["gravity", "twr"],
+        )
+        # When multiple probe types, results are nested by type
+        assert "linear" in result
+        assert "mlp" in result
+        assert "L1" in result["linear"]
+        assert "L1" in result["mlp"]
+        assert "gravity" in result["linear"]["L1"]
+        assert "gravity" in result["mlp"]["L1"]
+        # Coefficients only for linear
+        assert "L1/gravity" in coefficients
+        assert "L1/gravity_intercept" in coefficients
+
+    def test_single_type_is_not_nested(self):
+        """Single probe type (even if passed as tuple) keeps flat structure."""
+        data = self._make_data()
+        result_linear, _ = train_all_probes(
+            data, probe_types=("linear",), targets=["gravity"],
+        )
+        result_mlp, _ = train_all_probes(
+            data, probe_types=("mlp",), targets=["gravity"],
+        )
+        # Both should be flat: {layer: {target: {...}}}
+        assert "L1" in result_linear
+        assert "L1" in result_mlp
+        assert "linear" not in result_linear
+        assert "mlp" not in result_mlp

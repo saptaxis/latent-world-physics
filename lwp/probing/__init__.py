@@ -1,10 +1,10 @@
-"""Probing framework for mechanistic analysis of RL agent representations.
+"""Probing framework for mechanistic analysis of network representations.
 
 Key components:
     targets: Behavioral target computation (TWR, descent rate, etc.)
     hooks: Forward hook activation capture on policy networks
     collection: Probe data collection (activations + targets)
-    training: Ridge regression probe training with episode-level CV
+    training: Linear and MLP probe training with episode-level CV
 """
 from lwp.probing.targets import (
     compute_behavioral_targets,
@@ -14,4 +14,4 @@ from lwp.probing.targets import (
 )
 from lwp.probing.hooks import ActivationCollector
 from lwp.probing.collection import collect_probe_data
-from lwp.probing.training import train_single_probe, train_all_probes
+from lwp.probing.training import train_single_probe, train_single_mlp_probe, train_all_probes
