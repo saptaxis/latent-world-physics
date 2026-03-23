@@ -158,8 +158,10 @@ def train_single_mlp_probe(
     a nonlinear map. Comparing MLP R² to linear probe R² reveals whether
     information is linearly accessible or nonlinearly encoded.
 
-    Uses the lbfgs solver, which is recommended for small datasets (sklearn
-    docs: "can converge faster and perform better" when n_samples < ~1e4).
+    Automatically selects solver based on dataset size:
+    - lbfgs for small datasets (<10K samples): faster, more precise
+    - adam with early stopping for large datasets: scales to 100K+ samples
+
     Both input features and target are standardized per fold to make R²
     comparable across targets with different scales.
 
@@ -171,7 +173,7 @@ def train_single_mlp_probe(
         hidden_sizes: MLP hidden layer sizes. Default (64,) = one hidden
             layer with 64 units. Universal approximation theorem guarantees
             this can learn any continuous nonlinear map with enough units.
-        max_iter: Maximum training iterations for lbfgs.
+        max_iter: Maximum training iterations.
         seed: Random seed for reproducibility.
 
     Returns:
@@ -186,8 +188,7 @@ def train_single_mlp_probe(
         X_train, X_test = activations[train_mask], activations[test_mask]
         y_train, y_test = target[train_mask], target[test_mask]
 
-        # Scale input features — critical for MLP convergence and comparable
-        # to how sklearn examples recommend using MLPRegressor.
+        # Scale input features — critical for MLP convergence.
         scaler_X = StandardScaler()
         X_train_scaled = scaler_X.fit_transform(X_train)
         X_test_scaled = scaler_X.transform(X_test)
@@ -197,14 +198,30 @@ def train_single_mlp_probe(
         y_train_scaled = scaler_y.fit_transform(y_train.reshape(-1, 1)).ravel()
         y_test_scaled = scaler_y.transform(y_test.reshape(-1, 1)).ravel()
 
-        mlp = MLPRegressor(
-            hidden_layer_sizes=hidden_sizes,
-            solver="lbfgs",  # Recommended for small datasets (<1e4 samples)
-            alpha=0.1,       # L2 regularization; 0.1 works well empirically
-            max_iter=max_iter,
-            random_state=seed,
-        )
-        # Suppress lbfgs convergence warnings on noise data (no signal to find).
+        # lbfgs is faster/more precise for small datasets but fails on large
+        # ones (stores full Hessian approximation, O(n²) memory).
+        # adam with early stopping scales to 100K+ samples.
+        n_train = X_train_scaled.shape[0]
+        if n_train < 10_000:
+            mlp = MLPRegressor(
+                hidden_layer_sizes=hidden_sizes,
+                solver="lbfgs",
+                alpha=0.1,
+                max_iter=max_iter,
+                random_state=seed,
+            )
+        else:
+            mlp = MLPRegressor(
+                hidden_layer_sizes=hidden_sizes,
+                solver="adam",
+                alpha=0.0001,
+                early_stopping=True,
+                validation_fraction=0.1,
+                n_iter_no_change=20,
+                max_iter=max_iter,
+                random_state=seed,
+            )
+
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=ConvergenceWarning)
             mlp.fit(X_train_scaled, y_train_scaled)
