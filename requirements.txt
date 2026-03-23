@@ -1,0 +1,15 @@
+torch>=2.0
+torchvision>=0.15
+numpy>=1.24
+stable-baselines3>=2.0.0
+tensorboard>=2.14
+scipy>=1.10.0
+pandas>=2.0.0
+matplotlib>=3.7
+pyyaml>=6.0
+imageio[ffmpeg]>=2.31.0
+Pillow>=10.0.0
+opencv-python-headless>=4.8.0
+scikit-learn>=1.3.0
+tqdm
+pytest>=7.0
