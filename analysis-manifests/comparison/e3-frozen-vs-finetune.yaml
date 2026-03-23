@@ -1,0 +1,24 @@
+# E3 cross-config comparison: frozen vs fine-tune encoder strategies.
+# Tests whether fine-tune develops a different control strategy and
+# whether low-LR prevents the collapse seen at 2.5e-4.
+experiment: e3-frozen-vs-finetune
+description: "Pre-trained encoder: frozen vs fine-tune strategy comparison (gym-default, N=3)"
+output_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/analysis/cross-config/e3-frozen-vs-finetune
+
+comparisons:
+  frozen-vs-finetune:
+    condition: gym-default
+    profile: gym-default
+    configs:
+      frozen-lowlr:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/gym-default/visual-ppo-gym-default-128px-impala-lrdecay-pretrained-frozen-lowlr
+        seeds: [42, 123, 456]
+        trajectory_subdir: trajectories
+      finetune:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/gym-default/visual-ppo-gym-default-128px-impala-lrdecay-pretrained-finetune
+        seeds: [42, 123, 456]
+        trajectory_subdir: trajectories
+      finetune-lowlr:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/gym-default/visual-ppo-gym-default-128px-impala-pretrained-finetune-lowlr
+        seeds: [42, 123, 456]
+        trajectory_subdir: trajectories
