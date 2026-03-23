@@ -54,6 +54,17 @@ BEHAVIORAL_METRICS = [
     "frac_correcting",  # fraction of timesteps correcting orientation
     "thrust_autocorr_lag1",  # temporal smoothness of main thrust
     "side_thrust_autocorr_lag1",  # temporal smoothness of side thrust
+    # Orientation quality (E3 perception ablation)
+    "frac_upright",  # fraction of steps with |angle| < 0.1 rad
+    "max_angle_excursion",  # worst tilt during episode
+    "angle_recovery_time",  # mean steps to return to upright
+    # Thrust-angle coupling
+    "thrust_angle_correlation",  # Pearson corr between |angle| and thrust
+    "correction_lag",  # cross-corr peak lag between angle and thrust
+    # Descent quality
+    "time_to_descend",  # steps before altitude < 50% of start
+    "descent_steadiness",  # variance of vy during descent
+    "frac_approaching_pad",  # fraction of steps closing on pad center
 ]
 
 # Behavioral summary metrics (from behavioral_summary.json, per-seed).
@@ -169,27 +180,40 @@ def compute_variant_stats(seed_dfs: list[pd.DataFrame]) -> dict:
     """
     stats = {}
 
-    for metrics in [PERFORMANCE_METRICS, BEHAVIORAL_METRICS]:
-        for metric in metrics:
-            per_seed_values = []
-            for df in seed_dfs:
-                # Performance metrics derived from outcome column.
-                if metric == "landed_pct":
-                    val = (df["outcome"] == "landed").mean() * 100
-                elif metric == "crashed_pct":
-                    val = (df["outcome"] == "crashed").mean() * 100
-                elif metric == "timeout_pct":
-                    val = (df["outcome"] == "timeout").mean() * 100
-                elif metric == "oob_pct":
-                    val = (df["outcome"] == "out_of_bounds").mean() * 100
-                elif metric == "mean_reward":
-                    val = df["total_reward"].mean()
-                elif metric in df.columns:
-                    # Behavioral metrics are direct column means.
-                    val = df[metric].mean()
-                else:
-                    val = float("nan")
-                per_seed_values.append(round(float(val), 4))
+    # Auto-discover all numeric columns across all seed DataFrames.
+    # This means new metrics in metrics.csv are automatically included
+    # without updating any hardcoded list.
+    all_columns = set()
+    for df in seed_dfs:
+        all_columns.update(df.select_dtypes(include="number").columns.tolist())
+    # Remove columns that aren't meaningful as aggregate metrics.
+    skip_columns = {"episode_idx", "seed"}
+    all_columns -= skip_columns
+
+    # Combine hardcoded performance metrics (derived from outcome column)
+    # with all auto-discovered numeric columns.
+    all_metrics = list(PERFORMANCE_METRICS) + sorted(all_columns)
+
+    for metric in all_metrics:
+        per_seed_values = []
+        for df in seed_dfs:
+            # Performance metrics derived from outcome column.
+            if metric == "landed_pct":
+                val = (df["outcome"] == "landed").mean() * 100
+            elif metric == "crashed_pct":
+                val = (df["outcome"] == "crashed").mean() * 100
+            elif metric == "timeout_pct":
+                val = (df["outcome"] == "timeout").mean() * 100
+            elif metric == "oob_pct":
+                val = (df["outcome"] == "out_of_bounds").mean() * 100
+            elif metric == "mean_reward":
+                val = df["total_reward"].mean()
+            elif metric in df.columns:
+                # All other numeric columns: per-seed mean.
+                val = df[metric].mean()
+            else:
+                val = float("nan")
+            per_seed_values.append(round(float(val), 4))
 
             valid = [v for v in per_seed_values if not np.isnan(v)]
             if valid:
@@ -234,7 +258,7 @@ def run_statistical_tests(
     Args:
         variant_stats: Dict mapping variant_name -> output of compute_variant_stats().
         variant_names: Exactly two variant names to compare (e.g., ["labeled", "blind"]).
-        metrics: Which metrics to test. Defaults to PERFORMANCE_METRICS + BEHAVIORAL_METRICS.
+        metrics: Which metrics to test. Defaults to all metrics present in variant_stats.
 
     Returns:
         Dict mapping metric_name -> {
@@ -252,7 +276,11 @@ def run_statistical_tests(
         raise ValueError(f"Expected exactly 2 variants, got {len(variant_names)}")
 
     if metrics is None:
-        metrics = PERFORMANCE_METRICS + BEHAVIORAL_METRICS
+        # Auto-discover: use all metrics present in both variants.
+        name_a, name_b = variant_names
+        metrics = sorted(
+            set(variant_stats[name_a].keys()) & set(variant_stats[name_b].keys())
+        )
 
     name_a, name_b = variant_names
     stats_a = variant_stats[name_a]
@@ -453,7 +481,87 @@ def _write_comparison_table_txt(
                 f"{landed:>14s}  {reward:>14s}  {p_str:>8s}"
             )
 
+    # Full behavioral metric comparison (all metrics with stat tests).
+    for comp_name, result in sorted(all_results.items()):
+        test_results = result.get("test_results", {})
+        variant_stats = result["variant_stats"]
+        variants = result["variants"]
+
+        if not test_results:
+            continue
+
+        lines.append("")
+        lines.append(f"{'='*90}")
+        lines.append(f"  {comp_name} — Full Metric Comparison")
+        lines.append(f"{'='*90}")
+        lines.append(
+            f"  {'Metric':<32s}  {variants[0]:<16s}  {variants[1]:<16s}  "
+            f"{'p':>7s}  {'d':>7s}  {'winner':<10s}"
+        )
+        lines.append(f"  {'-'*86}")
+
+        for metric, tr in sorted(test_results.items()):
+            pv = tr.get("per_variant", {})
+            a = pv.get(variants[0], {})
+            b = pv.get(variants[1], {})
+            a_str = _fmt_mean_std(a) if a else "—"
+            b_str = _fmt_mean_std(b) if b else "—"
+            p_val = tr.get("p_value")
+            d_val = tr.get("effect_size_cohens_d")
+            winner = tr.get("winner", "")
+            p_str = f"{p_val:.3f}" if isinstance(p_val, (int, float)) else "—"
+            d_str = f"{d_val:.2f}" if isinstance(d_val, (int, float)) else "—"
+            sig = "***" if isinstance(p_val, (int, float)) and p_val < 0.1 else "   "
+            lines.append(
+                f"{sig}{metric:<32s}  {a_str:<16s}  {b_str:<16s}  "
+                f"{p_str:>7s}  {d_str:>7s}  {winner:<10s}"
+            )
+
+    # Significant metrics summary.
+    # Threshold adapts to sample size:
+    #   N≤3:  p < 0.1  (minimum possible p from Mann-Whitney is 0.05)
+    #   N≤5:  p < 0.05
+    #   N>5:  p < 0.01
+    for comp_name, result in sorted(all_results.items()):
+        test_results = result.get("test_results", {})
+        variants = result["variants"]
+        if not test_results:
+            continue
+
+        min_n = min(result["n_seeds"].get(v, 1) for v in variants)
+        if min_n <= 3:
+            p_threshold = 0.1
+        elif min_n <= 5:
+            p_threshold = 0.05
+        else:
+            p_threshold = 0.01
+
+        sig_metrics = [
+            (metric, tr) for metric, tr in sorted(test_results.items())
+            if isinstance(tr.get("p_value"), (int, float)) and tr["p_value"] < p_threshold
+        ]
+        if sig_metrics:
+            lines.append("")
+            lines.append(f"{'='*90}")
+            lines.append(f"  {comp_name} — Significant metrics (p < {p_threshold}, N={min_n})")
+            lines.append(f"{'='*90}")
+            for metric, tr in sig_metrics:
+                pv = tr.get("per_variant", {})
+                a = pv.get(variants[0], {})
+                b = pv.get(variants[1], {})
+                p_val = tr["p_value"]
+                d_val = tr.get("effect_size_cohens_d")
+                winner = tr.get("winner", "")
+                d_str = f"d={d_val:.2f}" if isinstance(d_val, (int, float)) else ""
+                lines.append(
+                    f"  {metric:<32s}: {variants[0]}={_fmt_mean_std(a):<16s} "
+                    f"{variants[1]}={_fmt_mean_std(b):<16s} "
+                    f"p={p_val:.3f} {d_str} → {winner}"
+                )
+
     (out / "comparison_table.txt").write_text("\n".join(lines) + "\n")
+    # Also print to console.
+    print("\n".join(lines))
 
 
 def _write_comparison_table_csv(all_results: dict, out: Path) -> None:

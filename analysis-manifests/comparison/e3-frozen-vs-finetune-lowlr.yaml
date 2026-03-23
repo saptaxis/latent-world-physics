@@ -1,0 +1,19 @@
+# E3: frozen vs fine-tune, both at low LR (5e-5 flat).
+# Clean comparison — same encoder, same LR, only difference is freeze_encoder.
+experiment: e3-frozen-vs-finetune-lowlr
+description: "Frozen vs fine-tune at matched low LR (gym-default, N=3)"
+output_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/analysis/cross-config/e3-frozen-vs-finetune-lowlr
+
+comparisons:
+  frozen-vs-finetune-lowlr:
+    condition: gym-default
+    profile: gym-default
+    configs:
+      frozen:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/gym-default/visual-ppo-gym-default-128px-impala-lrdecay-pretrained-frozen-lowlr
+        seeds: [42, 123, 456]
+        trajectory_subdir: trajectories
+      finetune:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/gym-default/visual-ppo-gym-default-128px-impala-pretrained-finetune-lowlr
+        seeds: [42, 123, 456]
+        trajectory_subdir: trajectories
