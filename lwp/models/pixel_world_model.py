@@ -118,22 +118,29 @@ class PixelWorldModel(nn.Module):
     @torch.no_grad()
     def dream_from_latent(self, z_seed: torch.Tensor, actions: torch.Tensor
                           ) -> tuple[torch.Tensor, torch.Tensor]:
-        """Dream from a latent seed (pure latent-space rollout).
-
-        Unlike dream(), this skips the initial encode step — useful when
-        the caller already has a latent code (e.g., from a training batch).
-        """
+        """Dream from a latent seed. Handles compositional split-mode z_bg copy."""
         was_training = self.training
         self.eval()
 
-        # Pure latent rollout — no encode/decode in the loop
-        z_seq, _ = self.dynamics.rollout(z_seed, actions)
-        # Batch-decode all timesteps at once: flatten (B, T+1) into a
-        # single batch dimension for efficient GPU parallelism
+        B, T = z_seed.shape[0], actions.shape[1]
+
+        # Check if compositional split mode — need to strip z_bg before dynamics
+        if hasattr(self.vae, 'latent_mode') and self.vae.latent_mode == 'split':
+            bg_dim = self.vae.bg_dim
+            z_bg = z_seed[:, :bg_dim]                    # (B, bg_dim) — static
+            z_dynamic = z_seed[:, bg_dim:]                # (B, pose_dim + obj_dim)
+            z_dynamic_seq, _ = self.dynamics.rollout(z_dynamic, actions)  # (B, T+1, dyn_dim)
+            # Re-attach z_bg for all timesteps
+            z_bg_expanded = z_bg.unsqueeze(1).expand(-1, T + 1, -1)  # (B, T+1, bg_dim)
+            z_seq = torch.cat([z_bg_expanded, z_dynamic_seq], dim=-1)  # (B, T+1, full_dim)
+        else:
+            # Flat mode or standard model — dynamics on full z
+            z_seq, _ = self.dynamics.rollout(z_seed, actions)  # (B, T+1, latent_dim)
+
+        # Decode all timesteps
         B, Tp1, D = z_seq.shape
         all_z = z_seq.reshape(B * Tp1, D)
         all_frames = self.vae.decode(all_z)
-        # Reshape back to (B, T+1, C, H, W) video tensor
         C, H, W = all_frames.shape[1:]
         frames = all_frames.reshape(B, Tp1, C, H, W)
 
