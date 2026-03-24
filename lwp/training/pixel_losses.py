@@ -104,6 +104,66 @@ def vae_loss(recon: torch.Tensor, target: torch.Tensor,
     return total, recon_loss, kl_loss, state_loss
 
 
+def compositional_vae_loss(
+    recon: torch.Tensor, target: torch.Tensor,
+    mu: torch.Tensor, logvar: torch.Tensor,
+    pose_pred: torch.Tensor, gt_pose: torch.Tensor,
+    A_hat: torch.Tensor,
+    beta: float = 0.0001, fg_weight: float = 1.0,
+    pose_weight: float = 1.0, mask_weight: float = 0.01,
+    mask_target: float = 0.35,
+    split_kl: bool = False, bg_dim: int = 8,
+    beta_bg: float = 0.0001, beta_obj: float = 0.0001,
+) -> dict[str, torch.Tensor]:
+    """Compositional VAE loss: fg-weighted recon + pose + KL + mask area.
+
+    Args:
+        recon: (B, 1, H, W) composited reconstruction
+        target: (B, 1, H, W) ground truth frame
+        mu, logvar: (B, kl_dim) latent distribution params
+        pose_pred: (B, 5) from pose head (tx, ty, sin, cos, scale)
+        gt_pose: (B, 4) GT (tx, ty, sin, cos) in grid coords. Scale excluded.
+        A_hat: (B, 1, cs, cs) alpha mask (pre-warp) for mask area prior
+        split_kl: if True, split KL into bg and obj components
+        bg_dim: dims for z_bg (split mode only, first bg_dim of mu/logvar)
+
+    Returns:
+        dict with keys: total, recon, pose, kl (or kl_bg+kl_obj), mask_area.
+    """
+    # --- Reconstruction loss (foreground-weighted MSE) ---
+    weights = _foreground_weight_mask(target, fg_weight) if fg_weight > 1.0 \
+        else torch.ones_like(target)
+    recon_loss = (weights * (recon - target) ** 2).mean()
+
+    # --- Pose supervision (exclude scale dim 4) ---
+    pose_loss = F.mse_loss(pose_pred[:, :4], gt_pose)
+
+    # --- KL divergence ---
+    losses = {'recon': recon_loss, 'pose': pose_loss}
+    if split_kl:
+        # Separate KL for bg and obj
+        mu_bg, mu_obj = mu[:, :bg_dim], mu[:, bg_dim:]
+        lv_bg, lv_obj = logvar[:, :bg_dim], logvar[:, bg_dim:]
+        kl_bg = -0.5 * torch.mean(1 + lv_bg - mu_bg.pow(2) - lv_bg.exp())
+        kl_obj = -0.5 * torch.mean(1 + lv_obj - mu_obj.pow(2) - lv_obj.exp())
+        losses['kl_bg'] = kl_bg
+        losses['kl_obj'] = kl_obj
+        kl_term = beta_bg * kl_bg + beta_obj * kl_obj
+    else:
+        kl = -0.5 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp())
+        losses['kl'] = kl
+        kl_term = beta * kl
+
+    # --- Mask area prior ---
+    mask_area = (A_hat.mean() - mask_target) ** 2
+    losses['mask_area'] = mask_area
+
+    # --- Total ---
+    total = recon_loss + pose_weight * pose_loss + kl_term + mask_weight * mask_area
+    losses['total'] = total
+    return losses
+
+
 def latent_dynamics_loss(z_pred: torch.Tensor,
                          z_target: torch.Tensor) -> torch.Tensor:
     """MSE loss in latent space for dynamics prediction."""
