@@ -95,7 +95,7 @@ def parse_args():
                    help="CoordConv: append x,y coordinate channels to encoder input. "
                         "Gives CNN explicit spatial info — helps with rotation/position.")
     p.add_argument("--model-type", type=str, default="standard",
-                   choices=["standard", "factored"],
+                   choices=["standard", "factored", "compositional"],
                    help="VAE model type. 'factored' splits z into [z_kin, z_ctx].")
     p.add_argument("--decoder-type", type=str, default="concat",
                    choices=["concat", "film"],
@@ -103,7 +103,30 @@ def parse_args():
     p.add_argument("--kin-targets", type=str, default="0,1,2,3,4,5",
                    help="Comma-separated kinematic dim indices for z_kin. "
                         "Default '0,1,2,3,4,5' = all 6. '4,5' = angle-only ablation.")
-    return p.parse_args()
+    # --- Compositional STN VAE args ---
+    p.add_argument("--latent-mode", type=str, default="flat",
+                   choices=["flat", "split"],
+                   help="Latent factorization mode (compositional only).")
+    p.add_argument("--bg-dim", type=int, default=8,
+                   help="Background latent dims (split mode only).")
+    p.add_argument("--obj-dim", type=int, default=32,
+                   help="Object latent dims (split mode only).")
+    p.add_argument("--pose-weight", type=float, default=1.0,
+                   help="Weight on pose head supervision loss.")
+    p.add_argument("--mask-weight", type=float, default=0.01,
+                   help="Weight on mask area prior.")
+    p.add_argument("--mask-target", type=float, default=0.35,
+                   help="Target mask area fraction.")
+    p.add_argument("--canonical-size", type=int, default=16,
+                   help="Canonical patch resolution.")
+    p.add_argument("--beta-bg", type=float, default=0.0001,
+                   help="KL weight for z_bg (split mode only).")
+    p.add_argument("--beta-obj", type=float, default=0.0001,
+                   help="KL weight for z_obj (split mode only).")
+    args = p.parse_args()
+    if args.latent_mode != "flat" and args.model_type != "compositional":
+        p.error("--latent-mode only applies to compositional model")
+    return args
 
 
 def main():
@@ -129,6 +152,31 @@ def main():
         args.state_weight = max(args.state_weight, 1.0)  # force state loss on
         print(f"  Factored mode: kin_targets={kin_targets}, "
               f"state_targets={state_targets}, state_dim={args.state_dim}")
+    elif args.model_type == "compositional":
+        # --- Validation rules (run early, before data loading) ---
+        if args.coord_conv:
+            print("ERROR: CoordConv not supported with compositional model")
+            sys.exit(2)
+        if args.state_dim > 0:
+            print("ERROR: State head replaced by pose head in compositional model")
+            sys.exit(2)
+        if args.decoder_type != "concat":
+            print("ERROR: Decoder type not applicable to compositional model (uses STN decoder)")
+            sys.exit(2)
+        if args.latent_mode == "flat" and any([
+            args.bg_dim != 8, args.obj_dim != 32,
+            args.beta_bg != 0.0001, args.beta_obj != 0.0001,
+        ]):
+            print("WARNING: --bg-dim/--obj-dim/--beta-bg/--beta-obj only apply to split mode")
+        # Compositional model: load x, y, angle for pose supervision
+        state_targets = [0, 1, 4]
+        args.state_dim = 3
+        # Compute latent_dim for split mode
+        if args.latent_mode == "split":
+            args.latent_dim = args.bg_dim + 5 + args.obj_dim  # pose_dim always 5
+        print(f"  Compositional mode: latent_mode={args.latent_mode}, "
+              f"state_targets={state_targets}, state_dim={args.state_dim}, "
+              f"latent_dim={args.latent_dim}")
     else:
         # Standard model: legacy first-N slice
         state_targets = None  # None means use state_dim int
@@ -196,6 +244,22 @@ def main():
             decoder_type=args.decoder_type,
             coord_conv=args.coord_conv,
         ).to(args.device)
+    elif args.model_type == "compositional":
+        from lwp.models.compositional_vae import CompositionalPixelVAE
+
+        vae = CompositionalPixelVAE(
+            in_channels=1 if args.grayscale else 3,
+            latent_dim=args.latent_dim,
+            frame_size=args.frame_size,
+            latent_mode=args.latent_mode,
+            bg_dim=args.bg_dim,
+            obj_dim=args.obj_dim,
+            canonical_size=args.canonical_size,
+            beta=args.beta,
+        ).to(args.device)
+
+        # Force state_weight to pose_weight for training loop compatibility
+        args.state_weight = args.pose_weight
     else:
         vae = PixelVAE(
             in_channels=in_ch,
@@ -263,6 +327,18 @@ def main():
         "grayscale": args.grayscale,
         "coord_conv": args.coord_conv,
     }
+    if args.model_type == "compositional":
+        config.update({
+            "latent_mode": args.latent_mode,
+            "bg_dim": args.bg_dim,
+            "obj_dim": args.obj_dim,
+            "canonical_size": args.canonical_size,
+            "pose_weight": args.pose_weight,
+            "mask_weight": args.mask_weight,
+            "mask_target": args.mask_target,
+            "beta_bg": args.beta_bg,
+            "beta_obj": args.beta_obj,
+        })
     import json
     with open(vae_dir / "config.json", "w") as f:
         json.dump(config, f, indent=2)
@@ -300,6 +376,12 @@ def main():
         device=args.device,
         extras={"config": config, "scheduler": scheduler},
     )
+
+    if args.model_type == "compositional":
+        ctx.extras["mask_weight"] = args.mask_weight
+        ctx.extras["mask_target"] = args.mask_target
+        ctx.extras["beta_bg"] = args.beta_bg
+        ctx.extras["beta_obj"] = args.beta_obj
 
     # --- SIGINT handler ---
     # Catch Ctrl-C to save an emergency checkpoint before exiting, so long
