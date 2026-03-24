@@ -13,7 +13,7 @@ import time
 import torch
 
 from lwp.training.pixel_losses import (
-    vae_loss, latent_dynamics_loss, multi_step_latent_loss, latent_elbo_loss,
+    vae_loss, compositional_vae_loss, latent_dynamics_loss, multi_step_latent_loss, latent_elbo_loss,
 )
 
 
@@ -48,14 +48,42 @@ def pixel_vae_train_epoch(model, train_loader, optimizer, beta: float = 0.0001,
             x = batch[0].to(device)
             state_target = batch[1].to(device) if len(batch) > 1 else None
 
-        # Forward pass — model returns reconstruction, posterior params,
-        # and optional state prediction from the latent
-        recon, mu, logvar, state_pred = model(x)
-        # Composite loss: weighted recon + beta*KL + state_weight*state_MSE
-        loss, recon_loss, kl_loss, state_loss = vae_loss(
-            recon, x, mu, logvar, beta, fg_weight=fg_weight,
-            state_pred=state_pred, state_target=state_target,
-            state_weight=state_weight)
+        # Forward pass — dispatch based on model type
+        if hasattr(model, 'latent_mode'):
+            # Compositional model: forward caches decomposition internally
+            recon, mu, logvar, pose_pred = model(x, gt_state=state_target)
+            # Grab A_hat from cached decomposition (same z as forward, no second encode)
+            decomposed = model.get_last_decomposed()
+
+            # Compute GT pose for supervision
+            from lwp.models.coord_utils import physics_to_grid, angle_to_sincos
+            gt_tx, gt_ty = physics_to_grid(state_target[:, 0], state_target[:, 1])
+            gt_sin, gt_cos = angle_to_sincos(state_target[:, 2])
+            gt_pose = torch.stack([gt_tx, gt_ty, gt_sin, gt_cos], dim=-1).to(device)
+
+            loss_dict = compositional_vae_loss(
+                recon, x, mu, logvar, pose_pred, gt_pose,
+                decomposed['A_hat'],
+                beta=beta, fg_weight=fg_weight,
+                pose_weight=state_weight,  # reuse state_weight arg for pose
+                mask_weight=ctx.extras.get('mask_weight', 0.01) if ctx else 0.01,
+                mask_target=ctx.extras.get('mask_target', 0.35) if ctx else 0.35,
+                split_kl=getattr(model, 'latent_mode', 'flat') == 'split',
+                bg_dim=getattr(model, 'bg_dim', 8),
+                beta_bg=ctx.extras.get('beta_bg', beta) if ctx else beta,
+                beta_obj=ctx.extras.get('beta_obj', beta) if ctx else beta,
+            )
+            loss = loss_dict['total']
+            recon_loss = loss_dict['recon']
+            kl_loss = loss_dict.get('kl', loss_dict.get('kl_bg', torch.tensor(0.0)))
+            state_loss = loss_dict['pose']
+        else:
+            # Standard/factored model: original path
+            recon, mu, logvar, state_pred = model(x)
+            loss, recon_loss, kl_loss, state_loss = vae_loss(
+                recon, x, mu, logvar, beta, fg_weight=fg_weight,
+                state_pred=state_pred, state_target=state_target,
+                state_weight=state_weight)
 
         optimizer.zero_grad()
         loss.backward()
@@ -78,6 +106,11 @@ def pixel_vae_train_epoch(model, train_loader, optimizer, beta: float = 0.0001,
                 # State loss only logged when active — avoids cluttering TB with zeros
                 if state_weight > 0:
                     ctx.writer.add_scalar("train/state_loss", state_loss.item(), ctx.global_step)
+                # Compositional model: log all loss components for detailed monitoring
+                if hasattr(model, 'latent_mode'):
+                    for k, v in loss_dict.items():
+                        if k != 'total':
+                            ctx.writer.add_scalar(f"train/{k}", v.item(), ctx.global_step)
             # Dispatch callbacks after gradient computation but before optimizer.step()
             # — this lets GradNormCallback inspect pre-step gradient norms
             for cb in callbacks:

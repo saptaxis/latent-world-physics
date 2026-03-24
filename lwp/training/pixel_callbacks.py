@@ -22,7 +22,7 @@ import torch.nn as nn
 
 from lwp.training.callbacks import TrainCallback, CallbackContext
 from lwp.training.pixel_losses import (
-    vae_loss, latent_dynamics_loss, multi_step_latent_loss, latent_elbo_loss,
+    vae_loss, compositional_vae_loss, latent_dynamics_loss, multi_step_latent_loss, latent_elbo_loss,
 )
 
 
@@ -78,14 +78,34 @@ class PixelVAEValidationCallback(TrainCallback):
                 else:
                     x = batch[0].to(ctx.device)
                     state_target = batch[1].to(ctx.device) if len(batch) > 1 else None
-                recon, mu, logvar, state_pred = ctx.model(x)
-                # Use same loss function and hyperparams as training
-                # so val loss is directly comparable to train loss
-                loss, recon_l, kl_l, state_l = vae_loss(
-                    recon, x, mu, logvar, self.beta,
-                    fg_weight=self.fg_weight,
-                    state_pred=state_pred, state_target=state_target,
-                    state_weight=self.state_weight)
+                if hasattr(ctx.model, 'latent_mode'):
+                    recon, mu, logvar, pose_pred = ctx.model(x, gt_state=state_target)
+                    decomposed = ctx.model.get_last_decomposed()
+                    from lwp.models.coord_utils import physics_to_grid, angle_to_sincos
+                    gt_tx, gt_ty = physics_to_grid(state_target[:, 0], state_target[:, 1])
+                    gt_sin, gt_cos = angle_to_sincos(state_target[:, 2])
+                    gt_pose = torch.stack([gt_tx, gt_ty, gt_sin, gt_cos], dim=-1).to(ctx.device)
+                    loss_dict = compositional_vae_loss(
+                        recon, x, mu, logvar, pose_pred, gt_pose,
+                        decomposed['A_hat'],
+                        beta=self.beta, fg_weight=self.fg_weight,
+                        pose_weight=self.state_weight,
+                        split_kl=getattr(ctx.model, 'latent_mode', 'flat') == 'split',
+                        bg_dim=getattr(ctx.model, 'bg_dim', 8),
+                    )
+                    loss = loss_dict['total']
+                    recon_l = loss_dict['recon']
+                    kl_l = loss_dict.get('kl', loss_dict.get('kl_bg', torch.tensor(0.0)))
+                    state_l = loss_dict['pose']
+                else:
+                    recon, mu, logvar, state_pred = ctx.model(x)
+                    # Use same loss function and hyperparams as training
+                    # so val loss is directly comparable to train loss
+                    loss, recon_l, kl_l, state_l = vae_loss(
+                        recon, x, mu, logvar, self.beta,
+                        fg_weight=self.fg_weight,
+                        state_pred=state_pred, state_target=state_target,
+                        state_weight=self.state_weight)
                 total_loss += loss.item()
                 total_recon += recon_l.item()
                 total_kl += kl_l.item()
