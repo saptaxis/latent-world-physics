@@ -5,7 +5,7 @@ dist/
 build/
 .eggs/
 .pytest_cache/
-data/
+/data/
 checkpoints/
 runs/
 MIGRATION.md
