@@ -8,24 +8,7 @@ import torch
 import torch.nn.functional as F
 import pytest
 
-
-def build_inverse_affine(tx, ty, sin_t, cos_t, s):
-    """Build inverse affine matrix for affine_grid (output→input mapping).
-
-    Forward: frame_pos = s * R @ canon_pos + t
-    Inverse: canon_pos = (1/s) * R^T @ (frame_pos - t)
-    """
-    inv_s = 1.0 / s
-    # Row 0: [inv_s*cos, inv_s*sin, inv_s*(-cos*tx - sin*ty)]
-    # Row 1: [-inv_s*sin, inv_s*cos, inv_s*(sin*tx - cos*ty)]
-    theta = torch.zeros(tx.shape[0], 2, 3)
-    theta[:, 0, 0] = inv_s * cos_t
-    theta[:, 0, 1] = inv_s * sin_t
-    theta[:, 0, 2] = inv_s * (-cos_t * tx - sin_t * ty)
-    theta[:, 1, 0] = -inv_s * sin_t
-    theta[:, 1, 1] = inv_s * cos_t
-    theta[:, 1, 2] = inv_s * (sin_t * tx - cos_t * ty)
-    return theta
+from lwp.models.compositional_vae import build_inverse_affine
 
 
 class TestInverseAffine:
