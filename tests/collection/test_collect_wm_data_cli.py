@@ -3,6 +3,7 @@
 import json
 import subprocess
 import sys
+from pathlib import Path
 
 import yaml
 
@@ -41,12 +42,12 @@ class TestSingleCollection:
         result = subprocess.run(
             [
                 sys.executable,
-                "lunar_lander/scripts/collect_world_model_data.py",
+                "scripts/collection/collect_world_model_data.py",
                 "--config", config_path,
                 "--output-dir", output_dir,
             ],
             capture_output=True, text=True, timeout=120,
-            cwd="/home/vsr/Dropbox/traitful-code/latent-world-geometry",
+            cwd=str(Path(__file__).resolve().parents[2]),
         )
         assert result.returncode == 0, f"STDERR: {result.stderr}"
 
@@ -67,13 +68,13 @@ class TestSingleCollection:
         result = subprocess.run(
             [
                 sys.executable,
-                "lunar_lander/scripts/collect_world_model_data.py",
+                "scripts/collection/collect_world_model_data.py",
                 "--config", config_path,
                 "--output-dir", output_dir,
                 "--sample", "2",
             ],
             capture_output=True, text=True, timeout=120,
-            cwd="/home/vsr/Dropbox/traitful-code/latent-world-geometry",
+            cwd=str(Path(__file__).resolve().parents[2]),
         )
         assert result.returncode == 0, f"STDERR: {result.stderr}"
         npz_files = list((tmp_path / "output").glob("*.npz"))
@@ -104,12 +105,12 @@ class TestSingleCollection:
         result = subprocess.run(
             [
                 sys.executable,
-                "lunar_lander/scripts/collect_world_model_data.py",
+                "scripts/collection/collect_world_model_data.py",
                 "--config", str(config_path),
                 "--output-dir", output_dir,
             ],
             capture_output=True, text=True, timeout=120,
-            cwd="/home/vsr/Dropbox/traitful-code/latent-world-geometry",
+            cwd=str(Path(__file__).resolve().parents[2]),
         )
         assert result.returncode == 0, f"STDERR: {result.stderr}"
         npz_files = list((tmp_path / "output").glob("*.npz"))
@@ -156,11 +157,11 @@ class TestBatchCollection:
         result = subprocess.run(
             [
                 sys.executable,
-                "lunar_lander/scripts/collect_world_model_data.py",
+                "scripts/collection/collect_world_model_data.py",
                 "--batch", str(batch_path),
             ],
             capture_output=True, text=True, timeout=120,
-            cwd="/home/vsr/Dropbox/traitful-code/latent-world-geometry",
+            cwd=str(Path(__file__).resolve().parents[2]),
         )
         assert result.returncode == 0, f"STDERR: {result.stderr}"
 
