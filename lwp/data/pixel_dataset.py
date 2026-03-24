@@ -149,6 +149,37 @@ def _load_one_episode_with_actions(args: tuple) -> tuple[np.ndarray | None, np.n
         return None, None
 
 
+def _load_one_episode_with_actions_and_states(
+    args: tuple,
+) -> tuple[np.ndarray | None, np.ndarray | None, np.ndarray | None]:
+    """Load frames + actions + states from a single episode. For multiprocessing.Pool.
+
+    Args tuple: (path, frame_size, grayscale, state_targets)
+        state_targets: list[int] of state dim indices to extract (e.g. [0, 1, 4])
+    """
+    path, frame_size, grayscale, state_targets = args
+    try:
+        with np.load(str(path)) as data:
+            raw_frames = data["rgb_frames"]
+            actions = data["actions"].astype(np.float32)
+            if "states" in data:
+                all_states = data["states"]
+                states = all_states[:, list(state_targets)].astype(np.float32)
+            else:
+                states = None
+        n_frames = raw_frames.shape[0]
+        n_actions = actions.shape[0]
+        usable = min(n_frames, n_actions + 1)
+        processed = np.stack([
+            _preprocess_frame(raw_frames[i], frame_size, grayscale)
+            for i in range(usable)
+        ])
+        states_out = states[:usable] if states is not None else None
+        return processed, actions[:usable - 1], states_out
+    except Exception:
+        return None, None, None
+
+
 def _load_and_preprocess_all_frames(
     episode_files: list[Path], frame_size: int, grayscale: bool,
     n_workers: int = 8,
@@ -554,11 +585,13 @@ class PixelEpisodeDataset(Dataset):
                  grayscale: bool = True, seq_len: int = 20,
                  frame_stack: int = 1, split: str | None = None,
                  val_fraction: float = 0.1, seed: int = 0,
-                 n_workers: int = 8, cache_path: str | Path | None = None):
+                 n_workers: int = 8, cache_path: str | Path | None = None,
+                 state_targets: list[int] | None = None):
         self.frame_size = frame_size
         self.grayscale = grayscale
         self.seq_len = seq_len
         self.frame_stack = frame_stack
+        self.state_targets = state_targets
 
         # Minimum episode length to yield at least one training window.
         # We need seq_len timesteps, plus (frame_stack - 1) extra past frames
@@ -570,6 +603,7 @@ class PixelEpisodeDataset(Dataset):
         # because windows must not cross episode boundaries.
         self._episode_frames = []  # list of (T+1, H, W) uint8 arrays
         self._episode_actions = []  # list of (T, action_dim) float32 arrays
+        self._episode_states = []  # list of (T+1, n_state_targets) float32 (if state_targets)
         # Flat index mapping: window_index[i] = (episode_idx, start_frame)
         # so __getitem__ can jump directly to any valid window in O(1).
         self._window_index = []
@@ -605,12 +639,25 @@ class PixelEpisodeDataset(Dataset):
 
             from multiprocessing import Pool
 
-            args = [(path, frame_size, grayscale) for path in episode_files]
+            if state_targets is not None:
+                # Load frames + actions + states for compositional VAE dynamics
+                args = [(path, frame_size, grayscale, state_targets)
+                        for path in episode_files]
+                loader_fn = _load_one_episode_with_actions_and_states
+            else:
+                args = [(path, frame_size, grayscale) for path in episode_files]
+                loader_fn = _load_one_episode_with_actions
+
             with Pool(n_workers) as pool:
-                for frames, actions in tqdm(
-                    pool.imap(_load_one_episode_with_actions, args),
+                for result in tqdm(
+                    pool.imap(loader_fn, args),
                     total=len(args), desc="Loading episodes", unit="ep",
                 ):
+                    if state_targets is not None:
+                        frames, actions, states = result
+                    else:
+                        frames, actions = result
+                        states = None
                     if frames is None:
                         continue
                     if frames.shape[0] < min_frames:
@@ -619,6 +666,8 @@ class PixelEpisodeDataset(Dataset):
                     ep_idx = len(self._episode_frames)
                     self._episode_frames.append(frames)
                     self._episode_actions.append(actions)
+                    if states is not None:
+                        self._episode_states.append(states)
 
                     # Enumerate all valid window start positions within this
                     # episode. Start at (frame_stack - 1) so there are enough
@@ -681,5 +730,13 @@ class PixelEpisodeDataset(Dataset):
         # .copy() because the numpy slice may share memory with the episode
         # array, and PyTorch prefers owning the underlying storage.
         actions_tensor = torch.from_numpy(act_chunk.copy()).float()
+
+        if self.state_targets is not None and self._episode_states:
+            # Return states aligned with frames window for pose supervision.
+            # states shape: (T+1, n_targets), slice same window as frames.
+            ep_states = self._episode_states[ep_idx]
+            states_chunk = ep_states[start:start + self.seq_len]
+            states_tensor = torch.from_numpy(states_chunk.copy()).float()
+            return frames_tensor, actions_tensor, states_tensor
 
         return frames_tensor, actions_tensor
