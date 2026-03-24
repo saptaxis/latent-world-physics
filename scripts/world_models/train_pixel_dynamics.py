@@ -98,6 +98,18 @@ def load_vae(checkpoint_path: str, device: str) -> PixelVAE:
             decoder_type=cfg.get("decoder_type", "concat"),
             coord_conv=cfg.get("coord_conv", False),
         )
+    elif model_type == "compositional":
+        from lwp.models.compositional_vae import CompositionalPixelVAE
+        vae = CompositionalPixelVAE(
+            in_channels=cfg.get("in_channels", 1),
+            latent_dim=cfg["latent_dim"],
+            frame_size=cfg["frame_size"],
+            latent_mode=cfg.get("latent_mode", "flat"),
+            bg_dim=cfg.get("bg_dim", 8),
+            obj_dim=cfg.get("obj_dim", 32),
+            canonical_size=cfg.get("canonical_size", 16),
+            beta=cfg.get("beta", 0.0001),
+        )
     else:
         # Standard PixelVAE with optional MLP state head
         vae = PixelVAE(
@@ -270,6 +282,17 @@ def main():
     latent_dim = vae_cfg["latent_dim"]
     grayscale = vae_cfg["in_channels"] == 1
     print(f"  VAE: latent_dim={latent_dim}, frame_size={frame_size}")
+
+    # Compositional VAE constraints on dynamics model type
+    if hasattr(vae, 'latent_mode'):
+        if vae.latent_mode == 'split' and args.model_type != 'factored-dyn':
+            print(f"ERROR: Split-latent compositional VAE requires --model-type factored-dyn, "
+                  f"got '{args.model_type}'")
+            sys.exit(1)
+        if vae.latent_mode == 'split':
+            # Override kin_dims to match pose_dim (5)
+            args.kin_dims = vae.pose_dim
+            print(f"  Compositional split mode: kin_dims={args.kin_dims} (pose)")
 
     # Warn if kin-weight is used without a factored VAE — the first kin_dims
     # z dimensions may not correspond to kinematics, making the weighting
