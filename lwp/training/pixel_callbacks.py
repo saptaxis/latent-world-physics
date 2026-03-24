@@ -195,6 +195,32 @@ class ReconGridCallback(TrainCallback):
             except ImportError:
                 # torchvision not installed — silently skip grid logging
                 pass
+        # Compositional model: show decomposition grid
+        if hasattr(ctx.model, 'latent_mode'):
+            with torch.no_grad():
+                z = ctx.model.encode(x)
+                decomp = ctx.model.decode_decomposed(z)
+
+            import torch.nn.functional as F_cb
+            # Upscale canonical patches to frame_size for grid alignment
+            fs = ctx.model.frame_size
+            O_up = F_cb.interpolate(decomp['O_hat'], size=fs, mode='nearest')
+            A_up = F_cb.interpolate(decomp['A_hat'], size=fs, mode='nearest')
+
+            # Build grid: rows = samples, cols = GT | Recon | O_hat | A_hat | B_hat
+            n = min(8, x.size(0))
+            rows = []
+            for i in range(n):
+                rows.append(torch.cat([
+                    x[i],                    # GT
+                    decomp['x_hat'][i],      # composited reconstruction
+                    O_up[i],                 # canonical lander (upscaled)
+                    A_up[i],                 # alpha mask (upscaled)
+                    decomp['B_hat'][i],      # background
+                ], dim=-1))  # concat along width
+            grid = torch.cat(rows, dim=-2)  # concat along height
+            ctx.writer.add_image("vae/decomposition_grid", grid, ctx.global_step)
+
         ctx.model.train()
         return True
 
@@ -818,5 +844,84 @@ class RSSMDiagnosticCallback(TrainCallback):
                 posterior_mse_sum / n_episodes,
                 ctx.global_step,
             )
+
+        return True
+
+
+class CompositionalDiagnosticsCallback(TrainCallback):
+    """Log decomposition diagnostics for compositional VAE every val pass.
+
+    Metrics: pose R² per dim, angle MAE, scale stats, mask area stats.
+    """
+
+    def __init__(self, val_loader, log_every_n_steps=500):
+        self.val_loader = val_loader
+        self.log_every_n_steps = log_every_n_steps
+
+    def on_step(self, ctx):
+        if ctx.global_step % self.log_every_n_steps != 0:
+            return True
+        if not hasattr(ctx.model, 'latent_mode'):
+            return True  # not compositional
+        if ctx.writer is None:
+            return True
+
+        ctx.model.eval()
+        all_pose_pred, all_gt_pose, all_mask_area, all_scale = [], [], [], []
+
+        from lwp.models.coord_utils import physics_to_grid, angle_to_sincos
+
+        with torch.no_grad():
+            for batch in self.val_loader:
+                if isinstance(batch, torch.Tensor):
+                    continue  # need states
+                x, state = batch[0].to(ctx.device), batch[1].to(ctx.device)
+                z = ctx.model.encode(x)
+                decomp = ctx.model.decode_decomposed(z)
+                pose = decomp['pose_params']  # (B, 5)
+
+                # GT pose
+                gt_tx, gt_ty = physics_to_grid(state[:, 0], state[:, 1])
+                gt_sin, gt_cos = angle_to_sincos(state[:, 2])
+                gt_pose = torch.stack([gt_tx, gt_ty, gt_sin, gt_cos], dim=-1)
+
+                all_pose_pred.append(pose[:, :4].cpu())
+                all_gt_pose.append(gt_pose.cpu())
+                all_scale.append(pose[:, 4].cpu())
+                all_mask_area.append(decomp['A_hat'].mean(dim=[1, 2, 3]).cpu())
+
+        ctx.model.train()
+
+        if not all_pose_pred:
+            return True
+
+        pose_pred = torch.cat(all_pose_pred)
+        gt_pose = torch.cat(all_gt_pose)
+        scales = torch.cat(all_scale)
+        mask_areas = torch.cat(all_mask_area)
+
+        # Per-dim pose R²
+        dim_names = ['tx', 'ty', 'sin', 'cos']
+        for i, name in enumerate(dim_names):
+            pred, gt = pose_pred[:, i], gt_pose[:, i]
+            ss_res = ((pred - gt) ** 2).sum()
+            ss_tot = ((gt - gt.mean()) ** 2).sum()
+            r2 = 1 - ss_res / (ss_tot + 1e-8)
+            ctx.writer.add_scalar(f"val/decomp/pose_r2_{name}", r2.item(), ctx.global_step)
+            ctx.writer.add_scalar(f"val/decomp/pose_mae_{name}", (pred - gt).abs().mean().item(), ctx.global_step)
+
+        # Angle MAE in degrees
+        pred_angle = torch.atan2(pose_pred[:, 2], pose_pred[:, 3])
+        gt_angle = torch.atan2(gt_pose[:, 2], gt_pose[:, 3])
+        angle_mae_deg = ((pred_angle - gt_angle).abs() * 180 / 3.14159).mean()
+        ctx.writer.add_scalar("val/decomp/angle_mae_deg", angle_mae_deg.item(), ctx.global_step)
+
+        # Scale stats
+        ctx.writer.add_scalar("val/decomp/scale_mean", scales.mean().item(), ctx.global_step)
+        ctx.writer.add_scalar("val/decomp/scale_std", scales.std().item(), ctx.global_step)
+
+        # Mask area stats
+        ctx.writer.add_scalar("val/decomp/mask_area_mean", mask_areas.mean().item(), ctx.global_step)
+        ctx.writer.add_scalar("val/decomp/mask_area_std", mask_areas.std().item(), ctx.global_step)
 
         return True
