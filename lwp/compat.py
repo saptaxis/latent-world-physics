@@ -12,6 +12,11 @@ on old checkpoints:
     import lwp.compat  # noqa: F401 -- registers old module paths
     model = PPO.load("old_model.zip")
 
+Or call register_compat_modules() to re-register after sys.modules cleanup:
+
+    from lwp.compat import register_compat_modules
+    register_compat_modules()
+
 Only visual_rl_agents checkpoints are affected (4 old references across
 2 modules). All other checkpoint types (encoder .pt, pixel world model .pt,
 state-vector RL .zip, world-model-ladder .pt) load without this shim.
@@ -22,15 +27,31 @@ import types
 import lwp.agents.visual_backbones as _vb
 import lwp.agents.aux_ppo as _ap
 
-# Create the old module hierarchy and point it at the new modules.
-_ll = types.ModuleType("lunar_lander")
-_ll_src = types.ModuleType("lunar_lander.src")
-_ll_src.visual_backbones = _vb  # type: ignore[attr-defined]
-_ll_src.aux_ppo = _ap  # type: ignore[attr-defined]
-_ll.src = _ll_src  # type: ignore[attr-defined]
 
-# setdefault avoids clobbering if the old package is actually installed.
-sys.modules.setdefault("lunar_lander", _ll)
-sys.modules.setdefault("lunar_lander.src", _ll_src)
-sys.modules.setdefault("lunar_lander.src.visual_backbones", _vb)
-sys.modules.setdefault("lunar_lander.src.aux_ppo", _ap)
+def register_compat_modules() -> None:
+    """Register lunar_lander.src.* shims in sys.modules.
+
+    Safe to call multiple times — uses setdefault so it never clobbers a
+    real lunar_lander package if one is installed. Also idempotent within
+    a single process (setdefault is a no-op if the key already exists).
+
+    Called automatically on module import. Also called explicitly by
+    load_model() to handle the case where sys.modules was cleaned up by
+    test teardown after the module was first imported.
+    """
+    # Create the old module hierarchy and point it at the new modules.
+    _ll = types.ModuleType("lunar_lander")
+    _ll_src = types.ModuleType("lunar_lander.src")
+    _ll_src.visual_backbones = _vb  # type: ignore[attr-defined]
+    _ll_src.aux_ppo = _ap  # type: ignore[attr-defined]
+    _ll.src = _ll_src  # type: ignore[attr-defined]
+
+    # setdefault avoids clobbering if the old package is actually installed.
+    sys.modules.setdefault("lunar_lander", _ll)
+    sys.modules.setdefault("lunar_lander.src", _ll_src)
+    sys.modules.setdefault("lunar_lander.src.visual_backbones", _vb)
+    sys.modules.setdefault("lunar_lander.src.aux_ppo", _ap)
+
+
+# Register on import.
+register_compat_modules()
