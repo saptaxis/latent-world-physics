@@ -114,8 +114,19 @@ def compositional_vae_loss(
     mask_target: float = 0.35,
     split_kl: bool = False, bg_dim: int = 8,
     beta_bg: float = 0.0001, beta_obj: float = 0.0001,
+    O_hat: torch.Tensor | None = None,
+    O_hat_target: torch.Tensor | None = None,
+    A_hat_target: torch.Tensor | None = None,
+    canonical_weight: float = 1.0,
+    mask_template_weight: float = 1.0,
 ) -> dict[str, torch.Tensor]:
     """Compositional VAE loss: fg-weighted recon + pose + KL + mask area.
+
+    Optionally includes canonical template supervision: MSE(O_hat, GT_template)
+    and BCE(A_hat, GT_mask) when template targets are provided. These give the
+    object and mask decoders direct training signal ("produce an upright lander
+    silhouette") instead of relying solely on the indirect compositing gradient
+    which can lead to blurry blobs.
 
     Args:
         recon: (B, 1, H, W) composited reconstruction
@@ -126,9 +137,18 @@ def compositional_vae_loss(
         A_hat: (B, 1, cs, cs) alpha mask (pre-warp) for mask area prior
         split_kl: if True, split KL into bg and obj components
         bg_dim: dims for z_bg (split mode only, first bg_dim of mu/logvar)
+        O_hat: (B, 1, cs, cs) canonical lander patch from decoder. Required
+            when O_hat_target is provided (for canonical supervision loss).
+        O_hat_target: (1, 1, cs, cs) GT canonical lander template. Broadcasts
+            across batch. When provided, adds MSE(O_hat, target) to loss.
+        A_hat_target: (1, 1, cs, cs) GT binary mask template. When provided,
+            adds BCE(A_hat, target) to loss.
+        canonical_weight: weight on canonical patch supervision loss.
+        mask_template_weight: weight on mask supervision loss (BCE).
 
     Returns:
-        dict with keys: total, recon, pose, kl (or kl_bg+kl_obj), mask_area.
+        dict with keys: total, recon, pose, kl (or kl_bg+kl_obj), mask_area,
+        and optionally canonical_template, mask_template.
     """
     # --- Reconstruction loss (foreground-weighted MSE) ---
     weights = _foreground_weight_mask(target, fg_weight) if fg_weight > 1.0 \
@@ -158,8 +178,35 @@ def compositional_vae_loss(
     mask_area = (A_hat.mean() - mask_target) ** 2
     losses['mask_area'] = mask_area
 
+    # --- Canonical template supervision (optional) ---
+    # When GT templates are provided, supervise the object decoder and mask
+    # decoder directly. This prevents the blurry-blob failure mode where
+    # both decoders produce soft approximations that blend together to
+    # satisfy reconstruction loss without learning crisp outputs.
+    canonical_term = torch.tensor(0.0, device=recon.device)
+    mask_template_term = torch.tensor(0.0, device=recon.device)
+
+    if O_hat is not None and O_hat_target is not None:
+        # MSE between decoder's canonical patch and GT lander template.
+        # O_hat_target is (1, 1, cs, cs), broadcasts across batch.
+        canonical_term = F.mse_loss(O_hat, O_hat_target.expand_as(O_hat))
+        losses['canonical_template'] = canonical_term
+
+    if A_hat_target is not None:
+        # BCE between decoder's mask and GT binary silhouette.
+        # A_hat is already sigmoid output in [0, 1]. A_hat_target is binary.
+        mask_template_term = F.binary_cross_entropy(
+            A_hat, A_hat_target.expand_as(A_hat).float(),
+        )
+        losses['mask_template'] = mask_template_term
+
     # --- Total ---
-    total = recon_loss + pose_weight * pose_loss + kl_term + mask_weight * mask_area
+    total = (recon_loss
+             + pose_weight * pose_loss
+             + kl_term
+             + mask_weight * mask_area
+             + canonical_weight * canonical_term
+             + mask_template_weight * mask_template_term)
     losses['total'] = total
     return losses
 

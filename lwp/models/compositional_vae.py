@@ -122,6 +122,7 @@ class CompositionalPixelVAE(nn.Module):
         pose_dim: int = 5,
         canonical_size: int = 16,
         beta: float = 0.0001,
+        fixed_scale: float | None = None,
     ):
         super().__init__()
         self.in_channels = in_channels
@@ -129,7 +130,12 @@ class CompositionalPixelVAE(nn.Module):
         self.latent_mode = latent_mode
         self.canonical_size = canonical_size
         self.beta = beta
-        self.pose_dim = pose_dim
+        # When fixed_scale is set, pose head outputs 4 dims (tx, ty, sin, cos)
+        # instead of 5. Scale is a constant — no learning, no collapse.
+        # Use when canonical template is at the correct pixel proportions
+        # and only translation + rotation need to be learned.
+        self.fixed_scale = fixed_scale
+        self.pose_dim = 4 if fixed_scale is not None else pose_dim
 
         if channels is None:
             channels = [32, 64, 128, 256]
@@ -175,16 +181,20 @@ class CompositionalPixelVAE(nn.Module):
             self.fc_pose_raw = nn.Linear(self._flat_dim, pose_dim)
 
         # --- Pose head ---
-        pose_input_dim = latent_dim if latent_mode == 'flat' else pose_dim
+        # Outputs (tx, ty, sin, cos) when fixed_scale is set (4 dims),
+        # or (tx, ty, sin, cos, scale_raw) when scale is learned (5 dims).
+        pose_output_dim = 4 if fixed_scale is not None else 5
+        pose_input_dim = latent_dim if latent_mode == 'flat' else self.pose_dim
         self.pose_head = nn.Sequential(
             nn.Linear(pose_input_dim, 32),
             nn.ReLU(inplace=True),
-            nn.Linear(32, 5),
+            nn.Linear(32, pose_output_dim),
         )
-        # Initialize scale bias so initial scale ~ 0.1
-        # softplus^{-1}(0.09) = ln(e^0.09 - 1) ~ -2.35
-        with torch.no_grad():
-            self.pose_head[-1].bias[4] = -2.35
+        if fixed_scale is None:
+            # Initialize scale bias so initial scale ~ 0.1
+            # softplus^{-1}(0.09) = ln(e^0.09 - 1) ~ -2.35
+            with torch.no_grad():
+                self.pose_head[-1].bias[4] = -2.35
 
         # --- Decoders ---
         obj_input_dim = latent_dim if latent_mode == 'flat' else obj_dim
@@ -246,17 +256,27 @@ class CompositionalPixelVAE(nn.Module):
             return torch.cat([z_bg, pose_raw, z_obj], dim=-1)
 
     def _apply_pose_head(self, pose_input: torch.Tensor) -> torch.Tensor:
-        """Run pose head and apply geometry constraints."""
-        raw = self.pose_head(pose_input)
-        tx, ty, sin_raw, cos_raw, s_raw = raw.unbind(-1)
+        """Run pose head and apply geometry constraints.
 
-        # Unit-circle normalization
+        Returns (B, 5): (tx, ty, sin_t, cos_t, s) regardless of whether
+        scale is learned or fixed — downstream code always gets 5 dims.
+        """
+        raw = self.pose_head(pose_input)
+
+        if self.fixed_scale is not None:
+            # Fixed scale: pose head outputs 4 dims only
+            tx, ty, sin_raw, cos_raw = raw.unbind(-1)
+            s = torch.full_like(tx, self.fixed_scale)
+        else:
+            # Learned scale: pose head outputs 5 dims
+            tx, ty, sin_raw, cos_raw, s_raw = raw.unbind(-1)
+            # Softplus scale: s = softplus(raw) + 0.01
+            s = F.softplus(s_raw) + 0.01
+
+        # Unit-circle normalization — guarantees rigid rotation
         norm = torch.sqrt(sin_raw**2 + cos_raw**2 + 1e-6)
         sin_t = sin_raw / norm
         cos_t = cos_raw / norm
-
-        # Softplus scale: s = softplus(raw) + 0.01
-        s = F.softplus(s_raw) + 0.01
 
         return torch.stack([tx, ty, sin_t, cos_t, s], dim=-1)
 

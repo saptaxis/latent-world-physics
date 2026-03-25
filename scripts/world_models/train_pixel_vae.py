@@ -123,6 +123,18 @@ def parse_args():
                    help="KL weight for z_bg (split mode only).")
     p.add_argument("--beta-obj", type=float, default=0.0001,
                    help="KL weight for z_obj (split mode only).")
+    # --- Canonical template supervision ---
+    p.add_argument("--template-path", type=str, default=None,
+                   help="Directory with canonical lander templates (lander_84_gray.npy, "
+                        "lander_mask_84_gray.npy). When provided, adds direct supervision "
+                        "on the canonical patch and mask decoders.")
+    p.add_argument("--canonical-weight", type=float, default=1.0,
+                   help="Weight on canonical patch supervision loss (MSE vs GT template).")
+    p.add_argument("--mask-template-weight", type=float, default=1.0,
+                   help="Weight on mask supervision loss (BCE vs GT silhouette).")
+    p.add_argument("--fixed-scale", type=float, default=None,
+                   help="Fixed affine scale (disables learned scale). Use when canonical "
+                        "template is at correct pixel proportions. ~0.08 for 84x84.")
     args = p.parse_args()
     if args.latent_mode != "flat" and args.model_type != "compositional":
         p.error("--latent-mode only applies to compositional model")
@@ -256,6 +268,7 @@ def main():
             obj_dim=args.obj_dim,
             canonical_size=args.canonical_size,
             beta=args.beta,
+            fixed_scale=args.fixed_scale,
         ).to(args.device)
 
         # Force state_weight to pose_weight for training loop compatibility
@@ -338,6 +351,7 @@ def main():
             "mask_target": args.mask_target,
             "beta_bg": args.beta_bg,
             "beta_obj": args.beta_obj,
+            "fixed_scale": args.fixed_scale,
         })
     import json
     with open(vae_dir / "config.json", "w") as f:
@@ -382,6 +396,25 @@ def main():
         ctx.extras["mask_target"] = args.mask_target
         ctx.extras["beta_bg"] = args.beta_bg
         ctx.extras["beta_obj"] = args.beta_obj
+
+        # Load canonical templates for direct decoder supervision.
+        # When provided, the loss function adds MSE(O_hat, template) and
+        # BCE(A_hat, mask_template) — gives the object and mask decoders
+        # explicit targets instead of relying on indirect compositing gradient.
+        if args.template_path is not None:
+            import numpy as np
+            tpl_dir = Path(args.template_path)
+            # Load and convert to float tensors in [0, 1], add batch+channel dims
+            O_tpl = np.load(tpl_dir / "lander_84_gray.npy")
+            A_tpl = np.load(tpl_dir / "lander_mask_84_gray.npy")
+            ctx.extras["template_O"] = torch.from_numpy(O_tpl).float().unsqueeze(0).unsqueeze(0).to(args.device) / 255.0
+            ctx.extras["template_A"] = torch.from_numpy(A_tpl).float().unsqueeze(0).unsqueeze(0).to(args.device) / 255.0
+            ctx.extras["canonical_weight"] = args.canonical_weight
+            ctx.extras["mask_template_weight"] = args.mask_template_weight
+            print(f"  Loaded canonical templates from {tpl_dir}")
+            print(f"    O_hat target shape: {ctx.extras['template_O'].shape}")
+            print(f"    A_hat target shape: {ctx.extras['template_A'].shape}")
+            print(f"    canonical_weight={args.canonical_weight}, mask_template_weight={args.mask_template_weight}")
 
     # --- SIGINT handler ---
     # Catch Ctrl-C to save an emergency checkpoint before exiting, so long

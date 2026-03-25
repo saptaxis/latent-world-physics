@@ -61,6 +61,18 @@ def pixel_vae_train_epoch(model, train_loader, optimizer, beta: float = 0.0001,
             gt_sin, gt_cos = angle_to_sincos(state_target[:, 2])
             gt_pose = torch.stack([gt_tx, gt_ty, gt_sin, gt_cos], dim=-1).to(device)
 
+            # Canonical template supervision — if templates are loaded in
+            # ctx.extras, pass them so the loss function can supervise the
+            # object decoder and mask decoder directly against GT templates.
+            template_kwargs = {}
+            if ctx and ctx.extras.get('template_O') is not None:
+                template_kwargs['O_hat'] = decomposed['O_hat']
+                template_kwargs['O_hat_target'] = ctx.extras['template_O']
+                template_kwargs['canonical_weight'] = ctx.extras.get('canonical_weight', 1.0)
+            if ctx and ctx.extras.get('template_A') is not None:
+                template_kwargs['A_hat_target'] = ctx.extras['template_A']
+                template_kwargs['mask_template_weight'] = ctx.extras.get('mask_template_weight', 1.0)
+
             loss_dict = compositional_vae_loss(
                 recon, x, mu, logvar, pose_pred, gt_pose,
                 decomposed['A_hat'],
@@ -72,6 +84,7 @@ def pixel_vae_train_epoch(model, train_loader, optimizer, beta: float = 0.0001,
                 bg_dim=getattr(model, 'bg_dim', 8),
                 beta_bg=ctx.extras.get('beta_bg', beta) if ctx else beta,
                 beta_obj=ctx.extras.get('beta_obj', beta) if ctx else beta,
+                **template_kwargs,
             )
             loss = loss_dict['total']
             recon_loss = loss_dict['recon']
