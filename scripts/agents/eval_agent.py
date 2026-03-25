@@ -42,6 +42,7 @@ import os
 import sys
 from pathlib import Path as _Path
 sys.path.insert(0, str(_Path(__file__).resolve().parents[2]))
+import lwp.compat  # noqa: F401 — registers old module paths for pickle
 import csv
 import json
 import argparse
