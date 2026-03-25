@@ -32,6 +32,8 @@ import argparse
 import subprocess
 from pathlib import Path
 
+REPO_ROOT = str(Path(__file__).resolve().parent.parent.parent)
+sys.path.insert(0, REPO_ROOT)
 
 from lwp.agents.training_config import load_batch_config, load_training_config
 
