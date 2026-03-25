@@ -152,7 +152,7 @@ def main():
                 continue
 
         cmd = [
-            sys.executable, "lunar_lander/scripts/train_rl.py",
+            sys.executable, "scripts/agents/train_rl.py",
             "--config", config_name,
         ]
         # Override seed and run_dir for multi-seed mode
