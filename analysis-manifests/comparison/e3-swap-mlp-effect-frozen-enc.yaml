@@ -1,0 +1,17 @@
+experiment: e3-swap-mlp-effect-frozen-enc
+description: "Encoder swap: frozen enc held constant, compare frozen vs finetune MLP (N=5, 200 eps)"
+output_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/analysis/cross-config/e3-swap-mlp-effect-frozen-enc
+
+comparisons:
+  e3-swap-mlp-effect-frozen-enc:
+    condition: gym-default
+    profile: gym-default
+    configs:
+      frozen_mlp:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/gym-default/encoder-swap-frozen-vs-finetune-lowlr
+        seeds: [42, 123, 456, 789, 1024]
+        trajectory_subdir: frozen_enc+frozen_mlp/trajectories
+      finetune_mlp:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/gym-default/encoder-swap-frozen-vs-finetune-lowlr
+        seeds: [42, 123, 456, 789, 1024]
+        trajectory_subdir: frozen_enc+finetune_mlp/trajectories

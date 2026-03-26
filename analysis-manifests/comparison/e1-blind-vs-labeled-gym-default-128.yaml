@@ -1,0 +1,17 @@
+experiment: e1-blind-vs-labeled-gym-default-128
+description: "E1 blind vs labeled on gym-default (2x128 lowent, N=5, 200 eps)"
+output_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/analysis/cross-config/e1-blind-vs-labeled-gym-default-128
+
+comparisons:
+  e1-blind-vs-labeled-gym-default-128:
+    condition: gym-default
+    profile: gym-default
+    configs:
+      blind:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/gym-default/blind-ppo-gym-default-128-lowent
+        seeds: [42, 123, 456, 789, 1024]
+        trajectory_subdir: trajectories
+      labeled:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/gym-default/labeled-ppo-gym-default-128-lowent
+        seeds: [42, 123, 456, 789, 1024]
+        trajectory_subdir: trajectories

@@ -1,0 +1,8 @@
+# E1 gym-default labeled, 2x128, lowent.
+#
+#   CUDA_VISIBLE_DEVICES="" python scripts/agents/train_all_agents.py \
+#       --batch e1-gym-default-labeled-128-lowent \
+#       --seeds 42,123,456,789,1024 \
+#       --output-base /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/baselines
+runs:
+  - gym-default/labeled-ppo-gym-default-128-lowent

@@ -1,0 +1,17 @@
+experiment: e1-blind-vs-e3-frozen
+description: "E1 blind vs E3 frozen visual (same MLP, same physics, N=5, 200 eps)"
+output_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/analysis/cross-config/e1-blind-vs-e3-frozen
+
+comparisons:
+  e1-blind-vs-e3-frozen:
+    condition: gym-default
+    profile: gym-default
+    configs:
+      blind:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/gym-default/blind-ppo-gym-default-128-lowent
+        seeds: [42, 123, 456, 789, 1024]
+        trajectory_subdir: trajectories
+      frozen-visual:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/gym-default/visual-ppo-gym-default-128px-impala-lrdecay-pretrained-frozen-lowlr
+        seeds: [42, 123, 456, 789, 1024]
+        trajectory_subdir: trajectories

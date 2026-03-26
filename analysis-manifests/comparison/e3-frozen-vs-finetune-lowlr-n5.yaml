@@ -1,0 +1,17 @@
+experiment: e3-frozen-vs-finetune-lowlr-n5
+description: "E3 frozen vs fine-tune low-LR (gym-default, N=5, 200 eps)"
+output_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/analysis/cross-config/e3-frozen-vs-finetune-lowlr-n5
+
+comparisons:
+  e3-frozen-vs-finetune-lowlr-n5:
+    condition: gym-default
+    profile: gym-default
+    configs:
+      frozen:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/gym-default/visual-ppo-gym-default-128px-impala-lrdecay-pretrained-frozen-lowlr
+        seeds: [42, 123, 456, 789, 1024]
+        trajectory_subdir: trajectories
+      finetune:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/gym-default/visual-ppo-gym-default-128px-impala-pretrained-finetune-lowlr
+        seeds: [42, 123, 456, 789, 1024]
+        trajectory_subdir: trajectories
