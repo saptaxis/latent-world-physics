@@ -45,6 +45,7 @@ import os
 import sys
 from pathlib import Path as _Path
 sys.path.insert(0, str(_Path(__file__).resolve().parents[2]))
+import lwp.compat  # noqa: F401 — registers old module paths for pickle
 import argparse
 from pathlib import Path
 
@@ -378,7 +379,7 @@ def _run_pipeline_for_agent(
         history_k = train_config.get("history_k", 8)
         n_rays = train_config.get("n_rays", 7)
         is_visual = variant.startswith("visual")
-        n_stack = train_config.get("n_stack", 4 if is_visual else 0)
+        n_stack = train_config.get("n_stack", 4) if is_visual else 0
         frame_size = train_config.get("frame_size", 84)
 
         print(f"  Config: {variant} / {algo.upper()}")
