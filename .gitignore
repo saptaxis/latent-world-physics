@@ -9,3 +9,4 @@ build/
 checkpoints/
 runs/
 MIGRATION.md
+scad-*.yml
