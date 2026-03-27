@@ -631,3 +631,169 @@ class TestTrajectorySubdir:
         }
         result = load_behavioral_summaries(comparison_data)
         assert result["labeled-zeroed"][0]["adaptation_score"] == 0.12
+
+
+# ============================================================
+# Multi-group comparison (k>2)
+# ============================================================
+
+
+class TestRunMultiGroupTests:
+    """Tests for k>2 group comparison with Kruskal-Wallis + pairwise MW."""
+
+    def _make_variant_stats(self):
+        """Create 3 groups: A and B similar, C different."""
+        return {
+            "group_a": {
+                "landed_pct": {
+                    "mean": 90.0, "std": 3.0,
+                    "per_seed": [88.0, 90.0, 92.0, 91.0, 89.0],
+                },
+                "frac_upright": {
+                    "mean": 0.72, "std": 0.03,
+                    "per_seed": [0.70, 0.73, 0.71, 0.74, 0.72],
+                },
+            },
+            "group_b": {
+                "landed_pct": {
+                    "mean": 91.0, "std": 2.5,
+                    "per_seed": [89.0, 92.0, 93.0, 90.0, 91.0],
+                },
+                "frac_upright": {
+                    "mean": 0.73, "std": 0.02,
+                    "per_seed": [0.72, 0.74, 0.73, 0.75, 0.71],
+                },
+            },
+            "group_c": {
+                "landed_pct": {
+                    "mean": 60.0, "std": 5.0,
+                    "per_seed": [55.0, 58.0, 62.0, 65.0, 60.0],
+                },
+                "frac_upright": {
+                    "mean": 0.45, "std": 0.05,
+                    "per_seed": [0.42, 0.44, 0.48, 0.46, 0.45],
+                },
+            },
+        }
+
+    def test_returns_expected_structure(self):
+        from lwp.analysis.cross_config_comparison import run_multi_group_tests
+
+        stats = self._make_variant_stats()
+        names = ["group_a", "group_b", "group_c"]
+        result = run_multi_group_tests(stats, names)
+
+        assert "landed_pct" in result
+        assert "omnibus_p" in result["landed_pct"]
+        assert "omnibus_test" in result["landed_pct"]
+        assert result["landed_pct"]["omnibus_test"] == "kruskal_wallis"
+        assert "pairwise" in result["landed_pct"]
+
+    def test_pairwise_count(self):
+        """k=3 groups -> 3 pairwise comparisons."""
+        from lwp.analysis.cross_config_comparison import run_multi_group_tests
+
+        stats = self._make_variant_stats()
+        names = ["group_a", "group_b", "group_c"]
+        result = run_multi_group_tests(stats, names)
+
+        pairs = result["landed_pct"]["pairwise"]
+        assert len(pairs) == 3  # (a,b), (a,c), (b,c)
+
+    def test_pairwise_keys_are_tuples(self):
+        from lwp.analysis.cross_config_comparison import run_multi_group_tests
+
+        stats = self._make_variant_stats()
+        names = ["group_a", "group_b", "group_c"]
+        result = run_multi_group_tests(stats, names)
+
+        pairs = result["landed_pct"]["pairwise"]
+        for key in pairs:
+            assert isinstance(key, tuple)
+            assert len(key) == 2
+
+    def test_bonferroni_correction_applied(self):
+        """Corrected p-values should be >= uncorrected."""
+        from lwp.analysis.cross_config_comparison import run_multi_group_tests
+
+        stats = self._make_variant_stats()
+        names = ["group_a", "group_b", "group_c"]
+        result = run_multi_group_tests(stats, names)
+
+        for pair, pr in result["landed_pct"]["pairwise"].items():
+            if pr["p_value"] is not None and pr["p_corrected"] is not None:
+                assert pr["p_corrected"] >= pr["p_value"]
+
+    def test_detects_different_group(self):
+        """Group C is clearly different -- omnibus should be significant."""
+        from lwp.analysis.cross_config_comparison import run_multi_group_tests
+
+        stats = self._make_variant_stats()
+        names = ["group_a", "group_b", "group_c"]
+        result = run_multi_group_tests(stats, names)
+
+        # Kruskal-Wallis should detect the difference
+        assert result["landed_pct"]["omnibus_p"] < 0.05
+
+        # Pairwise: A vs C and B vs C should be significant
+        pairs = result["landed_pct"]["pairwise"]
+        assert pairs[("group_a", "group_c")]["p_corrected"] < 0.05
+        assert pairs[("group_b", "group_c")]["p_corrected"] < 0.05
+
+    def test_similar_groups_not_significant(self):
+        """Groups A and B are similar -- pairwise should NOT be significant."""
+        from lwp.analysis.cross_config_comparison import run_multi_group_tests
+
+        stats = self._make_variant_stats()
+        names = ["group_a", "group_b", "group_c"]
+        result = run_multi_group_tests(stats, names)
+
+        pairs = result["landed_pct"]["pairwise"]
+        ab_p = pairs[("group_a", "group_b")]["p_corrected"]
+        assert ab_p is None or ab_p > 0.05
+
+    def test_effect_sizes_present(self):
+        from lwp.analysis.cross_config_comparison import run_multi_group_tests
+
+        stats = self._make_variant_stats()
+        names = ["group_a", "group_b", "group_c"]
+        result = run_multi_group_tests(stats, names)
+
+        for pair, pr in result["landed_pct"]["pairwise"].items():
+            assert "cohens_d" in pr
+
+    def test_per_variant_stats_included(self):
+        """Each metric result should include per-variant means."""
+        from lwp.analysis.cross_config_comparison import run_multi_group_tests
+
+        stats = self._make_variant_stats()
+        names = ["group_a", "group_b", "group_c"]
+        result = run_multi_group_tests(stats, names)
+
+        per_v = result["landed_pct"]["per_variant"]
+        assert "group_a" in per_v
+        assert "group_b" in per_v
+        assert "group_c" in per_v
+        assert "mean" in per_v["group_a"]
+
+    def test_two_groups_degrades_gracefully(self):
+        """With k=2, should still work (Kruskal-Wallis degrades to MW)."""
+        from lwp.analysis.cross_config_comparison import run_multi_group_tests
+
+        stats = self._make_variant_stats()
+        names = ["group_a", "group_c"]
+        result = run_multi_group_tests(stats, names)
+
+        assert "landed_pct" in result
+        assert len(result["landed_pct"]["pairwise"]) == 1
+
+    def test_auto_discovers_metrics(self):
+        """With metrics=None, uses all metrics present in all variants."""
+        from lwp.analysis.cross_config_comparison import run_multi_group_tests
+
+        stats = self._make_variant_stats()
+        names = ["group_a", "group_b", "group_c"]
+        result = run_multi_group_tests(stats, names)
+
+        assert "landed_pct" in result
+        assert "frac_upright" in result

@@ -390,6 +390,124 @@ def _cohens_d(group_a: list[float], group_b: list[float]) -> float:
     return abs(mean_a - mean_b) / pooled_std
 
 
+def run_multi_group_tests(
+    variant_stats: dict[str, dict],
+    variant_names: list[str],
+    metrics: list[str] | None = None,
+) -> dict:
+    """Run k-group statistical tests with Kruskal-Wallis + pairwise Mann-Whitney.
+
+    For k>2 groups: Kruskal-Wallis omnibus test per metric, then all
+    k*(k-1)/2 pairwise Mann-Whitney U tests with Bonferroni correction.
+
+    For k=2: degrades gracefully (Kruskal-Wallis equivalent to MW on 2 groups).
+
+    Args:
+        variant_stats: Dict mapping variant_name -> output of compute_variant_stats().
+        variant_names: k variant names (k >= 2).
+        metrics: Which metrics to test. Defaults to all metrics present in all variants.
+
+    Returns:
+        Dict mapping metric_name -> {
+            omnibus_test: "kruskal_wallis",
+            omnibus_p: float,
+            per_variant: {name: {mean, std, per_seed}},
+            pairwise: {(name_a, name_b): {
+                p_value: float (uncorrected),
+                p_corrected: float (Bonferroni),
+                cohens_d: float,
+                winner: str,
+            }},
+        }
+    """
+    from itertools import combinations
+    from scipy.stats import kruskal, mannwhitneyu
+
+    if len(variant_names) < 2:
+        raise ValueError(f"Need at least 2 variants, got {len(variant_names)}")
+
+    if metrics is None:
+        # Auto-discover: metrics present in ALL variants.
+        metric_sets = [set(variant_stats[n].keys()) for n in variant_names]
+        metrics = sorted(set.intersection(*metric_sets))
+
+    n_pairs = len(variant_names) * (len(variant_names) - 1) // 2
+
+    results = {}
+    for metric in metrics:
+        # Collect per-seed values for each variant.
+        groups = {}
+        for name in variant_names:
+            if metric not in variant_stats[name]:
+                continue
+            values = variant_stats[name][metric].get("per_seed", [])
+            valid = [v for v in values if not np.isnan(v)]
+            if valid:
+                groups[name] = valid
+
+        # Need at least 2 groups with data.
+        if len(groups) < 2:
+            continue
+
+        # Kruskal-Wallis omnibus test.
+        group_arrays = [groups[n] for n in variant_names if n in groups]
+        try:
+            h_stat, omnibus_p = kruskal(*group_arrays)
+        except ValueError:
+            h_stat, omnibus_p = float("nan"), float("nan")
+
+        # Per-variant summary.
+        per_variant = {}
+        for name in variant_names:
+            if name in groups:
+                per_variant[name] = {
+                    "mean": round(float(np.mean(groups[name])), 4),
+                    "std": round(float(np.std(groups[name], ddof=1)), 4) if len(groups[name]) > 1 else 0.0,
+                    "per_seed": variant_stats[name][metric].get("per_seed", []),
+                }
+
+        # All pairwise Mann-Whitney U with Bonferroni correction.
+        pairwise = {}
+        active_names = [n for n in variant_names if n in groups]
+        for name_a, name_b in combinations(active_names, 2):
+            try:
+                u_stat, p_value = mannwhitneyu(
+                    groups[name_a], groups[name_b], alternative="two-sided",
+                )
+            except ValueError:
+                u_stat, p_value = float("nan"), float("nan")
+
+            p_corrected = min(p_value * n_pairs, 1.0) if not np.isnan(p_value) else None
+            cohens_d = _cohens_d(groups[name_a], groups[name_b])
+
+            # Winner direction.
+            mean_a = np.mean(groups[name_a])
+            mean_b = np.mean(groups[name_b])
+            lower_is_better = metric in ("crashed_pct", "timeout_pct", "oob_pct")
+            if mean_a == mean_b:
+                winner = "tie"
+            elif lower_is_better:
+                winner = name_a if mean_a < mean_b else name_b
+            else:
+                winner = name_a if mean_a > mean_b else name_b
+
+            pairwise[(name_a, name_b)] = {
+                "p_value": round(float(p_value), 4) if not np.isnan(p_value) else None,
+                "p_corrected": round(float(p_corrected), 4) if p_corrected is not None else None,
+                "cohens_d": round(float(cohens_d), 4) if not np.isnan(cohens_d) else None,
+                "winner": winner,
+            }
+
+        results[metric] = {
+            "omnibus_test": "kruskal_wallis",
+            "omnibus_p": round(float(omnibus_p), 4) if not np.isnan(omnibus_p) else None,
+            "per_variant": per_variant,
+            "pairwise": pairwise,
+        }
+
+    return results
+
+
 # ============================================================
 # Output writers
 # ============================================================
