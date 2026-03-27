@@ -390,6 +390,124 @@ def _cohens_d(group_a: list[float], group_b: list[float]) -> float:
     return abs(mean_a - mean_b) / pooled_std
 
 
+def run_multi_group_tests(
+    variant_stats: dict[str, dict],
+    variant_names: list[str],
+    metrics: list[str] | None = None,
+) -> dict:
+    """Run k-group statistical tests with Kruskal-Wallis + pairwise Mann-Whitney.
+
+    For k>2 groups: Kruskal-Wallis omnibus test per metric, then all
+    k*(k-1)/2 pairwise Mann-Whitney U tests with Bonferroni correction.
+
+    For k=2: degrades gracefully (Kruskal-Wallis equivalent to MW on 2 groups).
+
+    Args:
+        variant_stats: Dict mapping variant_name -> output of compute_variant_stats().
+        variant_names: k variant names (k >= 2).
+        metrics: Which metrics to test. Defaults to all metrics present in all variants.
+
+    Returns:
+        Dict mapping metric_name -> {
+            omnibus_test: "kruskal_wallis",
+            omnibus_p: float,
+            per_variant: {name: {mean, std, per_seed}},
+            pairwise: {(name_a, name_b): {
+                p_value: float (uncorrected),
+                p_corrected: float (Bonferroni),
+                cohens_d: float,
+                winner: str,
+            }},
+        }
+    """
+    from itertools import combinations
+    from scipy.stats import kruskal, mannwhitneyu
+
+    if len(variant_names) < 2:
+        raise ValueError(f"Need at least 2 variants, got {len(variant_names)}")
+
+    if metrics is None:
+        # Auto-discover: metrics present in ALL variants.
+        metric_sets = [set(variant_stats[n].keys()) for n in variant_names]
+        metrics = sorted(set.intersection(*metric_sets))
+
+    n_pairs = len(variant_names) * (len(variant_names) - 1) // 2
+
+    results = {}
+    for metric in metrics:
+        # Collect per-seed values for each variant.
+        groups = {}
+        for name in variant_names:
+            if metric not in variant_stats[name]:
+                continue
+            values = variant_stats[name][metric].get("per_seed", [])
+            valid = [v for v in values if not np.isnan(v)]
+            if valid:
+                groups[name] = valid
+
+        # Need at least 2 groups with data.
+        if len(groups) < 2:
+            continue
+
+        # Kruskal-Wallis omnibus test.
+        group_arrays = [groups[n] for n in variant_names if n in groups]
+        try:
+            h_stat, omnibus_p = kruskal(*group_arrays)
+        except ValueError:
+            h_stat, omnibus_p = float("nan"), float("nan")
+
+        # Per-variant summary.
+        per_variant = {}
+        for name in variant_names:
+            if name in groups:
+                per_variant[name] = {
+                    "mean": round(float(np.mean(groups[name])), 4),
+                    "std": round(float(np.std(groups[name], ddof=1)), 4) if len(groups[name]) > 1 else 0.0,
+                    "per_seed": variant_stats[name][metric].get("per_seed", []),
+                }
+
+        # All pairwise Mann-Whitney U with Bonferroni correction.
+        pairwise = {}
+        active_names = [n for n in variant_names if n in groups]
+        for name_a, name_b in combinations(active_names, 2):
+            try:
+                u_stat, p_value = mannwhitneyu(
+                    groups[name_a], groups[name_b], alternative="two-sided",
+                )
+            except ValueError:
+                u_stat, p_value = float("nan"), float("nan")
+
+            p_corrected = min(p_value * n_pairs, 1.0) if not np.isnan(p_value) else None
+            cohens_d = _cohens_d(groups[name_a], groups[name_b])
+
+            # Winner direction.
+            mean_a = np.mean(groups[name_a])
+            mean_b = np.mean(groups[name_b])
+            lower_is_better = metric in ("crashed_pct", "timeout_pct", "oob_pct")
+            if mean_a == mean_b:
+                winner = "tie"
+            elif lower_is_better:
+                winner = name_a if mean_a < mean_b else name_b
+            else:
+                winner = name_a if mean_a > mean_b else name_b
+
+            pairwise[(name_a, name_b)] = {
+                "p_value": round(float(p_value), 4) if not np.isnan(p_value) else None,
+                "p_corrected": round(float(p_corrected), 4) if p_corrected is not None else None,
+                "cohens_d": round(float(cohens_d), 4) if not np.isnan(cohens_d) else None,
+                "winner": winner,
+            }
+
+        results[metric] = {
+            "omnibus_test": "kruskal_wallis",
+            "omnibus_p": round(float(omnibus_p), 4) if not np.isnan(omnibus_p) else None,
+            "per_variant": per_variant,
+            "pairwise": pairwise,
+        }
+
+    return results
+
+
 # ============================================================
 # Output writers
 # ============================================================
@@ -481,7 +599,7 @@ def _write_comparison_table_txt(
                 f"{landed:>14s}  {reward:>14s}  {p_str:>8s}"
             )
 
-    # Full behavioral metric comparison (all metrics with stat tests).
+    # Full behavioral metric comparison (2-variant only).
     for comp_name, result in sorted(all_results.items()):
         test_results = result.get("test_results", {})
         variant_stats = result["variant_stats"]
@@ -490,6 +608,14 @@ def _write_comparison_table_txt(
         if not test_results:
             continue
 
+        # Detect multi-group by checking for omnibus_p key.
+        first_metric = next(iter(test_results.values()), {})
+        if "omnibus_p" in first_metric:
+            # Multi-group: use dedicated formatter.
+            _write_multi_group_table_txt(comp_name, result, lines)
+            continue
+
+        # Existing 2-variant table (unchanged from here down).
         lines.append("")
         lines.append(f"{'='*90}")
         lines.append(f"  {comp_name} — Full Metric Comparison")
@@ -517,7 +643,7 @@ def _write_comparison_table_txt(
                 f"{p_str:>7s}  {d_str:>7s}  {winner:<10s}"
             )
 
-    # Significant metrics summary.
+    # Significant metrics summary (2-variant only; multi-group handled above).
     # Threshold adapts to sample size:
     #   N≤3:  p < 0.1  (minimum possible p from Mann-Whitney is 0.05)
     #   N≤5:  p < 0.05
@@ -526,6 +652,11 @@ def _write_comparison_table_txt(
         test_results = result.get("test_results", {})
         variants = result["variants"]
         if not test_results:
+            continue
+
+        # Skip multi-group results (handled by _write_multi_group_table_txt).
+        first_metric = next(iter(test_results.values()), {})
+        if "omnibus_p" in first_metric:
             continue
 
         min_n = min(result["n_seeds"].get(v, 1) for v in variants)
@@ -562,6 +693,81 @@ def _write_comparison_table_txt(
     (out / "comparison_table.txt").write_text("\n".join(lines) + "\n")
     # Also print to console.
     print("\n".join(lines))
+
+
+def _write_multi_group_table_txt(
+    comp_name: str,
+    result: dict,
+    lines: list[str],
+) -> None:
+    """Append multi-group comparison table to lines.
+
+    Shows all k conditions as columns with means, omnibus p-value,
+    and pairwise significance markers.
+    """
+    test_results = result.get("test_results", {})
+    variant_stats = result["variant_stats"]
+    variants = result["variants"]
+
+    if not test_results:
+        return
+
+    lines.append("")
+    lines.append(f"{'='*90}")
+    lines.append(f"  {comp_name} — Multi-Group Comparison ({len(variants)} conditions)")
+    lines.append(f"{'='*90}")
+
+    # Header: Metric | variant1 | variant2 | ... | KW p
+    header = f"  {'Metric':<28s}"
+    for v in variants:
+        header += f"  {v:>14s}"
+    header += f"  {'KW p':>8s}"
+    lines.append(header)
+    lines.append(f"  {'-' * (28 + 16 * len(variants) + 10)}")
+
+    for metric, tr in sorted(test_results.items()):
+        per_v = tr.get("per_variant", {})
+        omnibus_p = tr.get("omnibus_p")
+
+        row = ""
+        # Mark significant metrics
+        sig = "***" if isinstance(omnibus_p, (int, float)) and omnibus_p < 0.05 else "   "
+        row += f"{sig}{metric:<28s}"
+
+        for v in variants:
+            vs = per_v.get(v, {})
+            row += f"  {_fmt_mean_std(vs):>14s}"
+
+        p_str = f"{omnibus_p:.3f}" if isinstance(omnibus_p, (int, float)) else "—"
+        row += f"  {p_str:>8s}"
+        lines.append(row)
+
+    # Pairwise significance summary
+    lines.append("")
+    lines.append(f"  Pairwise comparisons (Bonferroni-corrected p-values):")
+    lines.append(f"  {'-' * 70}")
+
+    # Collect all significant pairs across metrics
+    sig_pairs = {}
+    for metric, tr in sorted(test_results.items()):
+        for pair, pr in tr.get("pairwise", {}).items():
+            p_corr = pr.get("p_corrected")
+            if isinstance(p_corr, (int, float)) and p_corr < 0.05:
+                if pair not in sig_pairs:
+                    sig_pairs[pair] = []
+                d = pr.get("cohens_d")
+                d_str = f"d={d:.2f}" if isinstance(d, (int, float)) else ""
+                sig_pairs[pair].append(f"{metric} (p={p_corr:.3f}, {d_str})")
+
+    if sig_pairs:
+        for pair, metrics_list in sorted(sig_pairs.items()):
+            lines.append(f"  {pair[0]} vs {pair[1]}: {len(metrics_list)} sig metrics")
+            for m in metrics_list[:5]:  # Show top 5
+                lines.append(f"    {m}")
+            if len(metrics_list) > 5:
+                lines.append(f"    ... and {len(metrics_list) - 5} more")
+    else:
+        lines.append(f"  No significant pairwise differences after Bonferroni correction.")
 
 
 def _write_comparison_table_csv(all_results: dict, out: Path) -> None:
@@ -622,6 +828,18 @@ def _write_comparison_table_csv(all_results: dict, out: Path) -> None:
         writer.writerows(rows)
 
 
+def _serialize_for_json(obj):
+    """Convert tuple keys to strings for JSON serialization."""
+    if isinstance(obj, dict):
+        return {
+            (f"{k[0]}__vs__{k[1]}" if isinstance(k, tuple) else k): _serialize_for_json(v)
+            for k, v in obj.items()
+        }
+    elif isinstance(obj, list):
+        return [_serialize_for_json(item) for item in obj]
+    return obj
+
+
 def _write_stat_tests_json(all_results: dict, out: Path) -> None:
     """Write full statistical test results as JSON.
 
@@ -636,7 +854,7 @@ def _write_stat_tests_json(all_results: dict, out: Path) -> None:
         }
 
     with open(out / "stat_tests.json", "w") as f:
-        json.dump(stat_data, f, indent=2)
+        json.dump(_serialize_for_json(stat_data), f, indent=2)
 
 
 def _write_metrics_by_variant(comp_result: dict, comp_dir: Path) -> None:

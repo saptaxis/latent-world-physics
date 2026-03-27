@@ -35,6 +35,7 @@ from lwp.analysis.cross_config_comparison import (
     plot_behavioral_comparison,
     plot_outcome_breakdown,
     plot_performance_bars,
+    run_multi_group_tests,
     run_statistical_tests,
     write_comparison_outputs,
 )
@@ -159,14 +160,17 @@ def main():
 
         variant_names = list(comp_data.get("configs", {}).keys())
 
-        # Run statistical tests (pairwise between first two variants).
-        # With N=2 per group, Mann-Whitney U can't reach significance,
-        # but we report the stats honestly.
+        # Run statistical tests.
         test_results = {}
-        if len(variant_names) >= 2:
+        if len(variant_names) == 2:
             test_results = run_statistical_tests(
                 variant_stats,
-                variant_names[:2],
+                variant_names,
+            )
+        elif len(variant_names) > 2:
+            test_results = run_multi_group_tests(
+                variant_stats,
+                variant_names,
             )
 
         # Load behavioral summaries (adaptation score etc.).
