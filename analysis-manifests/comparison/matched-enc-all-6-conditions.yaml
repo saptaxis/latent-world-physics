@@ -1,0 +1,35 @@
+# All 6 conditions: 2 baselines + 4 swap (N=5 independent encoders, 200 eps)
+# Uses Kruskal-Wallis multi-group comparison
+experiment: matched-enc-all-6-conditions
+description: "All 6 frozen/finetune conditions from matched encoders (N=5, 200 eps)"
+output_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/analysis/cross-config/matched-enc-all-6-conditions
+
+comparisons:
+  all-6:
+    condition: gym-default
+    profile: gym-default
+    configs:
+      frozen-baseline:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/gym-default/matched-encoder/frozen-lowlr
+        seeds: [42, 123, 456, 789, 1024]
+        trajectory_subdir: trajectories
+      finetune-baseline:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/gym-default/matched-encoder/finetune-lowlr
+        seeds: [42, 123, 456, 789, 1024]
+        trajectory_subdir: trajectories
+      Fr+Fr:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/gym-default/matched-encoder/encoder-swap
+        seeds: [42, 123, 456, 789, 1024]
+        trajectory_subdir: frozen_enc+frozen_mlp/trajectories
+      Ft+Ft:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/gym-default/matched-encoder/encoder-swap
+        seeds: [42, 123, 456, 789, 1024]
+        trajectory_subdir: finetune_enc+finetune_mlp/trajectories
+      Fr+Ft:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/gym-default/matched-encoder/encoder-swap
+        seeds: [42, 123, 456, 789, 1024]
+        trajectory_subdir: frozen_enc+finetune_mlp/trajectories
+      Ft+Fr:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/gym-default/matched-encoder/encoder-swap
+        seeds: [42, 123, 456, 789, 1024]
+        trajectory_subdir: finetune_enc+frozen_mlp/trajectories

@@ -1,0 +1,18 @@
+# Matched-encoder: frozen vs finetune (N=5 independent encoders, 200 eps)
+experiment: matched-enc-frozen-vs-finetune
+description: "Frozen vs fine-tune from independent encoders (N=5, 200 eps)"
+output_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/analysis/cross-config/matched-enc-frozen-vs-finetune
+
+comparisons:
+  frozen-vs-finetune:
+    condition: gym-default
+    profile: gym-default
+    configs:
+      frozen:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/gym-default/matched-encoder/frozen-lowlr
+        seeds: [42, 123, 456, 789, 1024]
+        trajectory_subdir: trajectories
+      finetune:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/gym-default/matched-encoder/finetune-lowlr
+        seeds: [42, 123, 456, 789, 1024]
+        trajectory_subdir: trajectories

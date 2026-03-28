@@ -1,0 +1,18 @@
+# Matched-encoder swap: MLP effect with finetune encoder held constant (N=5)
+experiment: matched-enc-swap-mlp-effect-finetune-enc
+description: "Swap MLP under finetune encoder, matched independent encoders (N=5, 200 eps)"
+output_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/analysis/cross-config/matched-enc-swap-mlp-effect-finetune-enc
+
+comparisons:
+  mlp-effect-finetune-enc:
+    condition: gym-default
+    profile: gym-default
+    configs:
+      frozen_mlp:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/gym-default/matched-encoder/encoder-swap
+        seeds: [42, 123, 456, 789, 1024]
+        trajectory_subdir: finetune_enc+frozen_mlp/trajectories
+      finetune_mlp:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/gym-default/matched-encoder/encoder-swap
+        seeds: [42, 123, 456, 789, 1024]
+        trajectory_subdir: finetune_enc+finetune_mlp/trajectories

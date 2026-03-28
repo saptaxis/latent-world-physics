@@ -1,0 +1,18 @@
+# Matched-encoder swap: encoder effect with frozen MLP held constant (N=5)
+experiment: matched-enc-swap-enc-effect-frozen-mlp
+description: "Swap encoder under frozen MLP, matched independent encoders (N=5, 200 eps)"
+output_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/analysis/cross-config/matched-enc-swap-enc-effect-frozen-mlp
+
+comparisons:
+  enc-effect-frozen-mlp:
+    condition: gym-default
+    profile: gym-default
+    configs:
+      frozen_enc:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/gym-default/matched-encoder/encoder-swap
+        seeds: [42, 123, 456, 789, 1024]
+        trajectory_subdir: frozen_enc+frozen_mlp/trajectories
+      finetune_enc:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/gym-default/matched-encoder/encoder-swap
+        seeds: [42, 123, 456, 789, 1024]
+        trajectory_subdir: finetune_enc+frozen_mlp/trajectories
