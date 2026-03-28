@@ -145,6 +145,7 @@ def run_probes(
         for ptype in probe_types:
             print(f"  {ptype:6s} {name:10s}...", end="", flush=True)
 
+            t_probe = time.time()
             if ptype == "linear":
                 result = train_single_probe(features, target, episode_ids, n_folds=n_folds)
                 # Remove numpy arrays for JSON serialization
@@ -157,10 +158,11 @@ def run_probes(
                 )
             else:
                 raise ValueError(f"Unknown probe type: {ptype}")
+            elapsed_probe = time.time() - t_probe
 
             r2 = result["r2_mean"]
             marker = "***" if r2 > 0.9 else "**" if r2 > 0.7 else "*" if r2 > 0.4 else ""
-            print(f" R²={r2:.4f} ±{result['r2_std']:.4f} {marker}")
+            print(f" R²={r2:.4f} ±{result['r2_std']:.4f} {marker}  ({elapsed_probe:.0f}s)")
             results[name][ptype] = result
 
     return results
