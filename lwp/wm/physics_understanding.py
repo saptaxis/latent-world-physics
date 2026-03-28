@@ -46,7 +46,7 @@ def passes_gravity_filter(state: np.ndarray, action: np.ndarray) -> bool:
 
     Side engine activates at |action_side| > 0.5, so we use that threshold.
     """
-    if action[0] > 0.05:  # main engine
+    if action[0] > 0.0:  # main engine fires at action[0] > 0
         return False
     if abs(action[1]) > 0.5:  # side engine activation threshold
         return False
@@ -74,7 +74,7 @@ def passes_side_thrust_filter(state: np.ndarray, action: np.ndarray) -> bool:
     """Side thrust measurement: strong side, no main, upright, not spinning."""
     if abs(action[1]) < 0.5:
         return False
-    if action[0] > 0.05:
+    if action[0] > 0.0:  # main engine fires at action[0] > 0
         return False
     if abs(state[ANGLE]) > 0.1:
         return False
@@ -113,7 +113,7 @@ def passes_angular_damping_filter(
     state: np.ndarray, action: np.ndarray
 ) -> bool:
     """Angular damping: no engines, enough rotation to measure decay."""
-    if action[0] > 0.05:
+    if action[0] > 0.0:  # main engine fires at action[0] > 0
         return False
     if abs(action[1]) > 0.5:
         return False
