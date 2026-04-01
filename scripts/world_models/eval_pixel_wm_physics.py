@@ -45,6 +45,9 @@ def parse_args():
                    help="Dream start stride (0=single start from frame 0)")
     p.add_argument("--max-horizon", type=int, default=0,
                    help="Max dream horizon per start (0=dream to end)")
+    p.add_argument("--seed", type=int, default=None,
+                   help="Random seed for episode sampling. Different seeds select "
+                        "different eval episodes for independent variance estimates.")
     return p.parse_args()
 
 
@@ -143,7 +146,7 @@ def load_dynamics(checkpoint_path: str, latent_dim: int, device: str):
 
 
 def collect_episode_paths(
-    data_paths: list[str], n_per_policy: int = 25,
+    data_paths: list[str], n_per_policy: int = 25, seed: int | None = None,
 ) -> list[str]:
     """Collect npz episode paths with stratified sampling across subdirs.
 
@@ -151,7 +154,14 @@ def collect_episode_paths(
     This ensures balanced representation across trajectory types
     (heuristic, random, free-fall, impulse-main, etc.) instead of
     biasing toward whichever subdir has the most episodes.
+
+    When seed is provided, episodes are randomly sampled within each subdir
+    (different seed = different eval episodes). When seed is None, uses
+    deterministic evenly-spaced sampling (backward compatible).
     """
+    import random as _random
+    rng = _random.Random(seed) if seed is not None else None
+
     all_paths = []
     for dp in data_paths:
         # Find all subdirs containing .npz files.
@@ -170,12 +180,15 @@ def collect_episode_paths(
                         subdirs[subdir] = []
                     subdirs[subdir].append(fpath)
 
-        # Sample n_per_policy from each subdir (evenly spaced)
+        # Sample n_per_policy from each subdir
         for subdir, files in sorted(subdirs.items()):
             if len(files) <= n_per_policy:
                 all_paths.extend(files)
+            elif rng is not None:
+                # Random sampling — different seed = different episodes
+                all_paths.extend(rng.sample(files, n_per_policy))
             else:
-                # Evenly spaced sampling to get representative spread
+                # Evenly spaced sampling (deterministic, backward compatible)
                 step = len(files) // n_per_policy
                 all_paths.extend([files[i * step] for i in range(n_per_policy)])
 
@@ -211,7 +224,7 @@ def main():
 
     print(f"Collecting episodes from {args.data_path}...")
     # Use stratified sampling: n_per_policy episodes from each subdir
-    paths = collect_episode_paths(args.data_path, args.n_per_policy)
+    paths = collect_episode_paths(args.data_path, args.n_per_policy, seed=args.seed)
     print(f"  Found {len(paths)} episodes")
     if not paths:
         print("ERROR: No episode files found. Check --data-path.")
