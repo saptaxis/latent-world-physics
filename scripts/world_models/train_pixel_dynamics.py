@@ -254,6 +254,8 @@ def parse_args():
     p.add_argument("--resume", type=str, default=None,
                    help="Path to checkpoint (.pt) to resume from. Restores model weights, "
                         "optimizer state, epoch, and global_step.")
+    p.add_argument("--seed", type=int, default=None,
+                   help="Random seed for reproducibility. Sets torch, numpy, and python RNG.")
 
     args = p.parse_args()
 
@@ -268,6 +270,16 @@ def parse_args():
 
 def main():
     args = parse_args()
+
+    # --- Seed ---
+    if args.seed is not None:
+        import random
+        random.seed(args.seed)
+        np.random.seed(args.seed)
+        torch.manual_seed(args.seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(args.seed)
+        print(f"  Seed: {args.seed}")
 
     # --- Load frozen VAE ---
     # The VAE was trained in Phase 1 (train_pixel_vae.py). We load it frozen
@@ -338,6 +350,7 @@ def main():
         "sampling_end": args.sampling_end,
         "sampling_warmup_frac": args.sampling_warmup_frac,
         "device": args.device,
+        "seed": args.seed,
     }
     with open(dyn_dir / "config.json", "w") as f:
         json.dump(run_config, f, indent=2)
