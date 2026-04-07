@@ -79,12 +79,17 @@ run_state_space_eval() {
 
     # C. Generic rollout metrics (horizon curves, divergence, etc.)
     local EV_OUT="$OUT/state-space/$run/eval"
+    local CKPT_EVAL="$(dirname "$CKPT")/eval"
     mkdir -p "$EV_OUT"
     log "  [SS] START eval: $run"
     python scripts/world_models/eval.py \
         --checkpoint "$CKPT" \
         --device cpu \
         > "$EV_OUT/stdout.log" 2>&1 || echo "  FAILED: $run eval"
+    # eval.py writes artifacts next to the checkpoint; copy into $OUT tree
+    if [ -d "$CKPT_EVAL" ]; then
+        cp -a "$CKPT_EVAL"/* "$EV_OUT/" 2>/dev/null || true
+    fi
 
     log "  [SS] DONE: $run"
 }
