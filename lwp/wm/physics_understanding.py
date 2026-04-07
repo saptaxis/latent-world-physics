@@ -183,13 +183,20 @@ def _get_model_device(model) -> torch.device:
 
 def _predict_oracle_delta(
     model, norm_stats, state: np.ndarray, action: np.ndarray,
-    model_state=None,
+    model_state=None, subsample: int = 1,
 ) -> tuple[np.ndarray, object]:
     """Run one oracle prediction: GT state + action -> model delta (raw space).
 
     Normalizes state, calls model.step(), denormalizes delta.
-    Returns (raw-space delta as numpy array (state_dim,), new_model_state).
+    Always returns a 6D raw-space delta by reconstructing the implied
+    full delta via hybrid_state_update. For 6D models this is a no-op
+    (hybrid_state_update returns state + delta). For 3D force-target
+    models, positions are integrated from the predicted velocity deltas.
+
+    Returns (raw-space 6D delta as numpy array (6,), new_model_state).
     """
+    from lwp.training.integration import hybrid_state_update
+
     with torch.no_grad():
         # Detect device from model parameters.
         device = _get_model_device(model)
@@ -206,7 +213,10 @@ def _predict_oracle_delta(
         delta_norm, new_model_state = model.step(s_norm, a, model_state)
         # Denormalize delta.
         delta_raw = delta_norm * delta_std + delta_mean
-    return delta_raw.squeeze(0).cpu().numpy(), new_model_state
+        # Reconstruct implied 6D delta via hybrid integration.
+        next_state = hybrid_state_update(s, delta_raw, subsample=subsample)
+        full_delta = next_state - s
+    return full_delta.squeeze(0).cpu().numpy(), new_model_state
 
 
 def extract_gravity_oracle(
@@ -569,7 +579,7 @@ DIM_NAMES = ["x", "y", "vx", "vy", "angle", "angular_vel"]
 
 def _rollout_trajectory(
     model, norm_stats, start_state: np.ndarray, actions: np.ndarray,
-    model_state=None,
+    model_state=None, subsample: int = 1,
 ) -> np.ndarray:
     """Autoregressive rollout: feed model's own predictions back.
 
@@ -579,10 +589,13 @@ def _rollout_trajectory(
         start_state: (6,) initial state in raw space.
         actions: (horizon, 2) actions to apply.
         model_state: For recurrent models, the hidden state after warmup.
+        subsample: Data subsample factor for hybrid integration.
 
     Returns:
         trajectory: (horizon + 1, 6) states in raw space (including start).
     """
+    from lwp.training.integration import hybrid_state_update
+
     device = _get_model_device(model)
     trajectory = [start_state.copy()]
     s_raw = torch.tensor(start_state, dtype=torch.float32, device=device).unsqueeze(0)
@@ -597,7 +610,7 @@ def _rollout_trajectory(
             a = torch.tensor(actions[t], dtype=torch.float32, device=device).unsqueeze(0)
             delta_norm, model_state = model.step(s_norm, a, model_state)
             delta_raw = delta_norm * delta_std + delta_mean
-            s_raw = s_raw + delta_raw
+            s_raw = hybrid_state_update(s_raw, delta_raw, subsample=subsample)
             trajectory.append(s_raw.squeeze(0).cpu().numpy().copy())
 
     return np.stack(trajectory).astype(np.float32)
@@ -696,6 +709,7 @@ def extract_constants_rollout(
     warmup_steps: int = 50,
     gravity_model: float | None = None,
     gravity_gt: float | None = None,
+    subsample: int = 1,
 ) -> dict:
     """Extract ALL constants from short autoregressive rollouts.
 
@@ -739,7 +753,7 @@ def extract_constants_rollout(
                         window_actions = actions[t:t + horizon]
                         traj = _rollout_trajectory(
                             model, norm_stats, states[t], window_actions,
-                            model_state=model_state,
+                            model_state=model_state, subsample=subsample,
                         )
                         _extract_from_window(
                             traj, window_actions, states, t, horizon,
@@ -757,6 +771,7 @@ def extract_constants_rollout(
                 window_actions = actions[t:t + horizon]
                 traj = _rollout_trajectory(
                     model, norm_stats, states[t], window_actions,
+                    subsample=subsample,
                 )
                 _extract_from_window(
                     traj, window_actions, states, t, horizon,
@@ -787,6 +802,7 @@ def compute_compounding_curve(
     horizons: list[int] = None,
     recurrent: bool = False,
     warmup_steps: int = 50,
+    subsample: int = 1,
 ) -> dict:
     """Compute MSE-vs-horizon compounding diagnostic.
 
@@ -847,7 +863,7 @@ def compute_compounding_curve(
         rollout_actions = actions[start_t:start_t + rollout_len]
         traj = _rollout_trajectory(
             model, norm_stats, states[start_t], rollout_actions,
-            model_state=model_state,
+            model_state=model_state, subsample=subsample,
         )
         gt_traj = states[start_t:start_t + rollout_len + 1]
 
@@ -967,6 +983,7 @@ def compute_warmup_curve(
                     _, model_state = model.step(s_norm, a, model_state)
 
             # Measure 1-step oracle error on next 10 transitions.
+            from lwp.training.integration import hybrid_state_update
             with torch.no_grad():
                 for t in range(wl, min(wl + 10, n_transitions)):
                     s = torch.tensor(states[t], dtype=torch.float32, device=device).unsqueeze(0)
@@ -974,10 +991,12 @@ def compute_warmup_curve(
                     a = torch.tensor(actions[t], dtype=torch.float32, device=device).unsqueeze(0)
                     delta_norm, model_state = model.step(s_norm, a, model_state)
                     delta_raw = delta_norm * delta_std + delta_mean
-                    delta_pred = delta_raw.squeeze(0).cpu().numpy()
+                    # Reconstruct full 6D delta via hybrid integration.
+                    next_state = hybrid_state_update(s, delta_raw, subsample=1)
+                    delta_pred_6d = (next_state - s).squeeze(0).cpu().numpy()
 
                     gt_delta = states[t + 1] - states[t]
-                    mse = float(np.mean((delta_pred - gt_delta) ** 2))
+                    mse = float(np.mean((delta_pred_6d - gt_delta) ** 2))
                     errors.append(mse)
 
         mse_by_warmup[wl] = float(np.mean(errors)) if errors else float("nan")
@@ -997,6 +1016,7 @@ def generate_report(
     recurrent: bool = False,
     rollout_horizon: int = 10,
     warmup_steps: int = 50,
+    subsample: int = 1,
 ) -> dict:
     """Run all physics understanding measurements and return structured results.
 
@@ -1056,6 +1076,7 @@ def generate_report(
         horizon=rollout_horizon, recurrent=recurrent,
         warmup_steps=warmup_steps,
         gravity_model=gravity_model, gravity_gt=gravity_gt,
+        subsample=subsample,
     )
 
     # Assemble per-constant results with oracle + rollout + consistency.
@@ -1096,6 +1117,7 @@ def generate_report(
     compounding = compute_compounding_curve(
         model, norm_stats, episodes,
         recurrent=recurrent, warmup_steps=warmup_steps,
+        subsample=subsample,
     )
 
     # Warmup length diagnostic (recurrent models only).

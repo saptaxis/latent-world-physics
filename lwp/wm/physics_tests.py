@@ -593,8 +593,9 @@ class WMLadderAdapter(PhysicsTestAdapter):
                 # Model predicts a normalized delta and updates its internal state.
                 delta_n, model_state = model.step(s_n, a_t, model_state)
                 # Convert the delta back to raw space and accumulate.
+                from lwp.training.integration import hybrid_state_update
                 delta_raw = self._denormalize_delta(delta_n)
-                s_raw = s_raw + delta_raw
+                s_raw = hybrid_state_update(s_raw, delta_raw, subsample=self.subsample)
                 pred_list.append(s_raw.squeeze(0).numpy().copy())
 
         return np.stack(pred_list).astype(np.float32)

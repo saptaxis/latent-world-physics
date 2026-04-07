@@ -767,6 +767,120 @@ class FakeGRUModelColdWarm:
         return delta, new_state
 
 
+class _FakeNormStats:
+    """NormStats stub supporting different state_dim and delta_dim."""
+
+    def __init__(self, state_dim=6, delta_dim=None):
+        if delta_dim is None:
+            delta_dim = state_dim
+        self.state_mean = torch.zeros(state_dim)
+        self.state_std = torch.ones(state_dim)
+        self.delta_mean = torch.zeros(delta_dim)
+        self.delta_std = torch.ones(delta_dim)
+
+
+def _make_gravity_episode(n_steps=50, dvy=-0.13):
+    """Create episode with known gravity for 3D model testing.
+
+    States pass gravity filter: y > 0.3, |x| < 0.8, upright, not spinning.
+    Actions are zero-thrust.
+    """
+    states = np.zeros((n_steps + 1, 6), dtype=np.float32)
+    states[:, 1] = 0.8  # y well above ground
+    for t in range(n_steps):
+        states[t + 1] = states[t].copy()
+        states[t + 1, 3] += dvy  # vy decreases by gravity each step
+        states[t + 1, 1] += states[t + 1, 3] * 0.0225  # integrate y
+    actions = np.zeros((n_steps, 2), dtype=np.float32)  # no thrust
+    return {"states": states, "actions": actions}
+
+
+class TestForce3OracleExtraction:
+    """Test that oracle extraction works with 3D-output (force-target) models."""
+
+    def test_gravity_extraction_3d_model(self):
+        """Oracle extraction works with a 3D-output model."""
+        from lwp.wm.physics_understanding import extract_gravity_oracle
+
+        class Force3GravityModel:
+            def eval(self): pass
+            def parameters(self): return iter([torch.zeros(1)])
+            def step(self, obs, action, model_state=None):
+                batch = obs.shape[0]
+                delta = torch.zeros(batch, 3)  # [dvx, dvy, dang_vel]
+                delta[:, 1] = -0.13  # gravity on dvy (index 1, not 3)
+                return delta, None
+
+        model = Force3GravityModel()
+        norm_stats = _FakeNormStats(state_dim=6, delta_dim=3)
+        episode = _make_gravity_episode(n_steps=50, dvy=-0.13)
+        result = extract_gravity_oracle(model, norm_stats, [episode])
+        assert result["n_samples"] > 5
+        np.testing.assert_allclose(result["model_mean"], -0.13, atol=0.01)
+
+    def test_6d_model_unchanged(self):
+        """6D model behavior is unchanged by the hybrid integration path."""
+        from lwp.wm.physics_understanding import extract_gravity_oracle
+
+        model = FakeLinearModel(gravity_delta_norm=-0.13)
+        norm_stats = FakeNormStats()
+        episode = _make_clean_episode(n_steps=50, gravity=-0.13)
+        result = extract_gravity_oracle(model, norm_stats, [episode])
+        assert result["n_samples"] > 10
+        np.testing.assert_allclose(result["model_mean"], -0.13, atol=0.01)
+
+    def test_3d_rollout_trajectory(self):
+        """Rollout trajectory works with 3D model via hybrid integration."""
+        from lwp.wm.physics_understanding import _rollout_trajectory
+
+        class Force3Model:
+            def eval(self): pass
+            def parameters(self): return iter([torch.zeros(1)])
+            def step(self, obs, action, model_state=None):
+                batch = obs.shape[0]
+                delta = torch.zeros(batch, 3)
+                delta[:, 1] = -0.13  # gravity
+                return delta, None
+
+        model = Force3Model()
+        norm_stats = _FakeNormStats(state_dim=6, delta_dim=3)
+        start_state = np.array([0.0, 0.8, 0.0, 0.0, 0.0, 0.0], dtype=np.float32)
+        actions = np.zeros((10, 2), dtype=np.float32)
+
+        traj = _rollout_trajectory(model, norm_stats, start_state, actions)
+        # Should be (11, 6) - start + 10 steps
+        assert traj.shape == (11, 6)
+        # vy should decrease by -0.13 each step
+        for t in range(10):
+            dvy = traj[t + 1, 3] - traj[t, 3]
+            np.testing.assert_allclose(dvy, -0.13, atol=0.001)
+        # y should also change (integrated from vy via hybrid)
+        assert traj[10, 1] != traj[0, 1], "y should change due to hybrid integration"
+
+    def test_warmup_curve_3d_model(self):
+        """compute_warmup_curve works with 3D model (no shape mismatch)."""
+        from lwp.wm.physics_understanding import compute_warmup_curve
+
+        class Force3GRU:
+            def eval(self): pass
+            def parameters(self): return iter([torch.zeros(1)])
+            def step(self, obs, action, model_state=None):
+                batch = obs.shape[0]
+                count = (model_state or 0) + 1
+                delta = torch.zeros(batch, 3)
+                delta[:, 1] = -0.13
+                return delta, count
+
+        model = Force3GRU()
+        norm_stats = _FakeNormStats(state_dim=6, delta_dim=3)
+        episode = _make_gravity_episode(n_steps=100, dvy=-0.13)
+        result = compute_warmup_curve(model, norm_stats, [episode], warmup_lengths=[0, 5, 10])
+        assert "oracle_mse_by_warmup" in result
+        # Should not crash and should produce finite values
+        for wl, mse in result["oracle_mse_by_warmup"].items():
+            assert np.isfinite(mse), f"MSE at warmup={wl} should be finite"
+
+
 class TestRecurrentOracleExtraction:
     """Test that oracle extraction threads hidden state for recurrent models."""
 
@@ -819,14 +933,14 @@ class TestRolloutOffByOne:
         branch_states = []
         branch_times = []
 
-        def recording_rollout(model, norm_stats, start_state, actions, model_state=None):
+        def recording_rollout(model, norm_stats, start_state, actions, model_state=None, subsample=1):
             branch_states.append(model_state)
             ep_states = episode["states"][:, :6]
             for t in range(len(ep_states)):
                 if np.allclose(start_state, ep_states[t], atol=1e-6):
                     branch_times.append(t)
                     break
-            return original_rollout(model, norm_stats, start_state, actions, model_state=model_state)
+            return original_rollout(model, norm_stats, start_state, actions, model_state=model_state, subsample=subsample)
 
         pu._rollout_trajectory = recording_rollout
         try:
