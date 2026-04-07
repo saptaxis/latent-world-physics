@@ -732,11 +732,8 @@ def extract_constants_rollout(
             model_state = None
             with torch.no_grad():
                 for t in range(n_transitions):
-                    s = torch.tensor(states[t], dtype=torch.float32, device=device).unsqueeze(0)
-                    s_norm = (s - state_mean) / state_std
-                    a = torch.tensor(actions[t], dtype=torch.float32, device=device).unsqueeze(0)
-                    _, model_state = model.step(s_norm, a, model_state)
-
+                    # Branch BEFORE advancing hidden state so action[t]
+                    # is applied exactly once (inside the rollout).
                     if t >= warmup_steps and (t - warmup_steps) % horizon == 0 \
                             and t + horizon < n_transitions:
                         window_actions = actions[t:t + horizon]
@@ -748,6 +745,12 @@ def extract_constants_rollout(
                             traj, window_actions, states, t, horizon,
                             accum, gravity_model, gravity_gt,
                         )
+
+                    # Then advance hidden state via teacher-forcing.
+                    s = torch.tensor(states[t], dtype=torch.float32, device=device).unsqueeze(0)
+                    s_norm = (s - state_mean) / state_std
+                    a = torch.tensor(actions[t], dtype=torch.float32, device=device).unsqueeze(0)
+                    _, model_state = model.step(s_norm, a, model_state)
         else:
             t = 3  # Skip first 3 steps (general filter).
             while t + horizon < n_transitions:
