@@ -56,6 +56,12 @@ def main():
     print(f"Model: {config.arch} (epoch {ckpt['epoch']})")
     print(f"Device: {device}")
 
+    # Warmup for recurrent models
+    arch = config.arch
+    warmup = 50 if arch in ("gru", "rssm") else 0
+    if warmup > 0:
+        print(f"Warmup: {warmup} steps (recurrent model)")
+
     # Output directory
     run_dir = Path(args.checkpoint).parent
     eval_dir = run_dir / "eval"
@@ -86,7 +92,8 @@ def main():
     horizons = [h for h in horizons if h <= max_T]
 
     curves = horizon_error_curve(model, val_ds, norm_stats, horizons=horizons,
-                                 n_rollouts=args.n_rollouts, device=device)
+                                 n_rollouts=args.n_rollouts, device=device,
+                                 warmup_steps=warmup)
     results["horizon_curves"] = {
         h: {name: float(curves[h][i]) for i, name in enumerate(dim_names)}
         for h in horizons
@@ -110,7 +117,8 @@ def main():
     cumul_curves = cumulative_trajectory_mse(model, val_ds, norm_stats,
                                               horizons=horizons,
                                               n_rollouts=args.n_rollouts,
-                                              device=device)
+                                              device=device,
+                                              warmup_steps=warmup)
     results["cumul_horizon_curves"] = {
         h: {name: float(cumul_curves[h][i]) for i, name in enumerate(dim_names)}
         for h in horizons if h in cumul_curves

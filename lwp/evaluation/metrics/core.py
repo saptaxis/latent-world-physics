@@ -27,15 +27,23 @@ def per_dim_mse(model, data_loader, norm_stats: NormStats,
     return torch.cat(all_sq_errors, dim=0).mean(dim=0)
 
 
-def _rollout_raw_space(model, s0, actions, norm_stats):
-    """Open-loop rollout in raw space with proper normalize/denormalize at each step.
+def _rollout_raw_space(model, s0, actions, norm_stats,
+                       warmup_states=None, warmup_actions=None):
+    """Open-loop rollout in raw space with optional warmup for recurrent models.
 
-    Same as rollout_open_loop but handles the normalization boundary:
-    normalize state for model input, denormalize delta for accumulation.
+    If warmup_states/warmup_actions are provided, teacher-forces through them
+    first to build hidden state before the open-loop rollout.
     """
     states = [s0]
     s = s0
     model_state = None
+
+    # Warmup: teacher-force through warmup steps to build hidden state
+    if warmup_states is not None and warmup_actions is not None:
+        for t in range(warmup_actions.shape[0]):
+            ws_n = normalize(warmup_states[t:t+1], norm_stats.state_mean, norm_stats.state_std)
+            _, model_state = model.step(ws_n, warmup_actions[t:t+1], model_state)
+
     for t in range(actions.shape[1]):
         s_n = normalize(s, norm_stats.state_mean, norm_stats.state_std)
         delta_n, model_state = model.step(s_n, actions[:, t], model_state)
@@ -48,7 +56,8 @@ def _rollout_raw_space(model, s0, actions, norm_stats):
 @torch.no_grad()
 def horizon_error_curve(model, dataset, norm_stats: NormStats,
                         horizons: list[int] = (1, 5, 10, 20, 50, 100),
-                        n_rollouts: int = 50, device: str = "cpu") -> dict:
+                        n_rollouts: int = 50, device: str = "cpu",
+                        warmup_steps: int = 0) -> dict:
     """MSE at each horizon via autoregressive rollout (Eval B).
 
     Rolls out in raw space (normalize/denormalize at each step) to
@@ -69,18 +78,23 @@ def horizon_error_curve(model, dataset, norm_stats: NormStats,
         states = torch.from_numpy(dataset.states[ep_idx]).to(device)
         actions = torch.from_numpy(dataset.actions[ep_idx]).to(device)
         T = len(actions)
-        if T < max_h:
+        if T < warmup_steps + max_h:
             continue
 
-        s0 = states[0].unsqueeze(0)
-        acts = actions[:max_h].unsqueeze(0)
-        pred_states = _rollout_raw_space(model, s0, acts, ns)
+        s0 = states[warmup_steps].unsqueeze(0)
+        acts = actions[warmup_steps:warmup_steps + max_h].unsqueeze(0)
+
+        warmup_s = states[:warmup_steps] if warmup_steps > 0 else None
+        warmup_a = actions[:warmup_steps] if warmup_steps > 0 else None
+        pred_states = _rollout_raw_space(model, s0, acts, ns,
+                                         warmup_states=warmup_s,
+                                         warmup_actions=warmup_a)
 
         for h in horizons:
-            if h > T:
+            if h > T - warmup_steps:
                 continue
             pred_raw = pred_states[0, h]
-            true_raw = states[h]
+            true_raw = states[warmup_steps + h]
             sq_err = (pred_raw - true_raw).pow(2)
             step_errors[h].append(sq_err.cpu())
 
@@ -98,7 +112,8 @@ def horizon_error_curve(model, dataset, norm_stats: NormStats,
 @torch.no_grad()
 def cumulative_trajectory_mse(model, dataset, norm_stats: NormStats,
                                horizons: list[int] = (1, 5, 10, 20, 50),
-                               n_rollouts: int = 50, device: str = "cpu") -> dict:
+                               n_rollouts: int = 50, device: str = "cpu",
+                               warmup_steps: int = 0) -> dict:
     """Average MSE across all steps 1..h for each horizon (Eval B').
 
     Unlike horizon_error_curve which measures error at step h only,
@@ -120,19 +135,24 @@ def cumulative_trajectory_mse(model, dataset, norm_stats: NormStats,
         states = torch.from_numpy(dataset.states[ep_idx]).to(device)
         actions = torch.from_numpy(dataset.actions[ep_idx]).to(device)
         T = len(actions)
-        if T < max_h:
+        if T < warmup_steps + max_h:
             continue
 
-        s0 = states[0].unsqueeze(0)
-        acts = actions[:max_h].unsqueeze(0)
-        pred_states = _rollout_raw_space(model, s0, acts, ns)
+        s0 = states[warmup_steps].unsqueeze(0)
+        acts = actions[warmup_steps:warmup_steps + max_h].unsqueeze(0)
+
+        warmup_s = states[:warmup_steps] if warmup_steps > 0 else None
+        warmup_a = actions[:warmup_steps] if warmup_steps > 0 else None
+        pred_states = _rollout_raw_space(model, s0, acts, ns,
+                                         warmup_states=warmup_s,
+                                         warmup_actions=warmup_a)
 
         for h in horizons:
-            if h > T:
+            if h > T - warmup_steps:
                 continue
             errs = []
             for t in range(1, h + 1):
-                sq_err = (pred_states[0, t] - states[t]).pow(2)
+                sq_err = (pred_states[0, t] - states[warmup_steps + t]).pow(2)
                 errs.append(sq_err)
             cumul_mse = torch.stack(errs).mean(dim=0)
             step_errors[h].append(cumul_mse.cpu())
@@ -151,7 +171,8 @@ def cumulative_trajectory_mse(model, dataset, norm_stats: NormStats,
 @torch.no_grad()
 def rollout_error_metrics(model, dataset, norm_stats: NormStats,
                           horizons: list[int] = (1, 5, 10, 20, 50),
-                          n_rollouts: int = 50, device: str = "cpu") -> tuple[dict, dict]:
+                          n_rollouts: int = 50, device: str = "cpu",
+                          warmup_steps: int = 0) -> tuple[dict, dict]:
     """Combined endpoint and cumulative trajectory MSE from one rollout pass.
 
     Does the same rollouts as horizon_error_curve + cumulative_trajectory_mse
@@ -174,22 +195,27 @@ def rollout_error_metrics(model, dataset, norm_stats: NormStats,
         states = torch.from_numpy(dataset.states[ep_idx]).to(device)
         actions = torch.from_numpy(dataset.actions[ep_idx]).to(device)
         T = len(actions)
-        if T < max_h:
+        if T < warmup_steps + max_h:
             continue
 
-        s0 = states[0].unsqueeze(0)
-        acts = actions[:max_h].unsqueeze(0)
-        pred_states = _rollout_raw_space(model, s0, acts, ns)
+        s0 = states[warmup_steps].unsqueeze(0)
+        acts = actions[warmup_steps:warmup_steps + max_h].unsqueeze(0)
+
+        warmup_s = states[:warmup_steps] if warmup_steps > 0 else None
+        warmup_a = actions[:warmup_steps] if warmup_steps > 0 else None
+        pred_states = _rollout_raw_space(model, s0, acts, ns,
+                                         warmup_states=warmup_s,
+                                         warmup_actions=warmup_a)
 
         for h in horizons:
-            if h > T:
+            if h > T - warmup_steps:
                 continue
             # Endpoint MSE at step h
-            sq_err = (pred_states[0, h] - states[h]).pow(2)
+            sq_err = (pred_states[0, h] - states[warmup_steps + h]).pow(2)
             endpoint_errs[h].append(sq_err.cpu())
             # Cumulative MSE averaged across steps 1..h
             step_sq = torch.stack(
-                [(pred_states[0, t] - states[t]).pow(2) for t in range(1, h + 1)]
+                [(pred_states[0, t] - states[warmup_steps + t]).pow(2) for t in range(1, h + 1)]
             )
             cumul_errs[h].append(step_sq.mean(dim=0).cpu())
 
