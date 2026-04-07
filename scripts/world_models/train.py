@@ -119,14 +119,22 @@ def main():
     data_mode = "single_step" if config.training_mode == "single_step" else "sequence"
     seq_len = config.seq_len if data_mode == "sequence" else None
 
+    # Determine force target indices from config
+    force_target_indices = None
+    if getattr(config, 'delta_dim', config.state_dim) < config.state_dim:
+        from lwp.training.integration import FORCE_TARGET_INDICES
+        force_target_indices = FORCE_TARGET_INDICES
+
     train_ds = EpisodeDataset(config.data_path, state_dim=config.state_dim,
                               mode=data_mode, seq_len=seq_len, split="train",
                               val_fraction=config.val_fraction,
-                              subsample=config.subsample)
+                              subsample=config.subsample,
+                              force_target_indices=force_target_indices)
     val_ds = EpisodeDataset(config.data_path, state_dim=config.state_dim,
                             mode=data_mode, seq_len=seq_len, split="val",
                             val_fraction=config.val_fraction,
-                            subsample=config.subsample)
+                            subsample=config.subsample,
+                            force_target_indices=force_target_indices)
 
     train_loader = DataLoader(train_ds, batch_size=config.batch_size,
                               shuffle=True, drop_last=True)
@@ -145,7 +153,8 @@ def main():
     val_ds_ss = EpisodeDataset(config.data_path, state_dim=config.state_dim,
                                mode="single_step", split="val",
                                val_fraction=config.val_fraction,
-                               subsample=config.subsample)
+                               subsample=config.subsample,
+                               force_target_indices=force_target_indices)
     val_loader_ss = DataLoader(val_ds_ss, batch_size=config.batch_size)
 
     # Normalization stats from training data

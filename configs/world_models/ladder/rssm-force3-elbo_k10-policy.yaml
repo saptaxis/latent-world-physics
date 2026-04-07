@@ -1,0 +1,33 @@
+# configs/world_models/ladder/rssm-force3-elbo_k10-policy.yaml
+# E2-25: RSSM with 3D force targets [Δvx, Δvy, Δang_vel]
+# Same architecture as rssm-gym-default but predicts only velocity deltas.
+arch: rssm
+arch_params:
+  deter_dim: 200
+  stoch_dim: 30
+prediction: delta
+training_mode: elbo
+rollout_k: 10
+seq_len: 50
+data_mix: policy
+data_path: /media/hdd1/physics-priors-latent-space/lunar-lander-data/world_model_data/gym-default
+state_dim: 6
+delta_dim: 3
+dim_names: [dvx, dvy, dang_vel]
+dim_weights: inv_var
+kl_weight: 1.0
+subsample: 5
+action_dim: 2
+lr: 0.001
+batch_size: 64
+epochs: 200
+val_fraction: 0.1
+val_every: 500
+patience: 15
+ckpt_every: 5000
+plot_every: 10000
+grad_norm_every: 200
+rollout_every: 10000
+rollout_n_rollouts: 20
+grad_clip: 1.0
+run_dir: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/world-model-ladder-runs
