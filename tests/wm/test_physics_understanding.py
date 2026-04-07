@@ -736,3 +736,138 @@ class TestWarmupDiagnostic:
         mse = result["oracle_mse_by_warmup"]
         # Error should decrease (or stay flat) with more warmup.
         assert mse[0] >= mse[50]
+
+
+class FakeGRUModelColdWarm:
+    """GRU-like model whose prediction depends on hidden state.
+
+    Returns gravity_cold on first step (no hidden state),
+    gravity_warm on subsequent steps (has hidden state).
+    """
+
+    def __init__(self, gravity_cold=-0.5, gravity_warm=-0.13):
+        self.gravity_cold = gravity_cold
+        self.gravity_warm = gravity_warm
+
+    def eval(self):
+        pass
+
+    def parameters(self):
+        return iter([torch.zeros(1)])
+
+    def step(self, obs, action, model_state=None):
+        batch = obs.shape[0]
+        delta = torch.zeros(batch, 6)
+        if model_state is None:
+            delta[:, 3] = self.gravity_cold
+            new_state = torch.ones(1)
+        else:
+            delta[:, 3] = self.gravity_warm
+            new_state = model_state
+        return delta, new_state
+
+
+class TestRecurrentOracleExtraction:
+    """Test that oracle extraction threads hidden state for recurrent models."""
+
+    def test_oracle_uses_hidden_state_for_recurrent(self):
+        from lwp.wm.physics_understanding import extract_gravity_oracle
+
+        model = FakeGRUModelColdWarm(gravity_cold=-0.5, gravity_warm=-0.13)
+        norm_stats = FakeNormStats()
+        episode = _make_clean_episode(n_steps=50, gravity=-0.13)
+        result = extract_gravity_oracle(model, norm_stats, [episode], recurrent=True)
+        assert result["n_samples"] > 5
+        # With recurrent=True, most steps use warm prediction (-0.13)
+        np.testing.assert_allclose(result["model_mean"], -0.13, atol=0.01)
+
+    def test_oracle_cold_start_without_recurrent_flag(self):
+        from lwp.wm.physics_understanding import extract_gravity_oracle
+
+        model = FakeGRUModelColdWarm(gravity_cold=-0.5, gravity_warm=-0.13)
+        norm_stats = FakeNormStats()
+        episode = _make_clean_episode(n_steps=50, gravity=-0.13)
+        result = extract_gravity_oracle(model, norm_stats, [episode], recurrent=False)
+        assert result["n_samples"] > 5
+        # Without recurrent, every step is cold-start (-0.5)
+        np.testing.assert_allclose(result["model_mean"], -0.5, atol=0.01)
+
+
+class TestRolloutOffByOne:
+    """Verify recurrent rollout extraction doesn't double-apply the branch action."""
+
+    def test_recurrent_rollout_branch_alignment(self):
+        """Hidden state at branch time should reflect context UP TO (not including) branch step."""
+        from lwp.wm.physics_understanding import extract_constants_rollout
+
+        class StepCountingModel:
+            def eval(self): pass
+            def parameters(self): return iter([torch.zeros(1)])
+            def step(self, obs, action, model_state=None):
+                batch = obs.shape[0]
+                count = (model_state or 0)
+                delta = torch.zeros(batch, 6)
+                delta[:, 3] = -0.13
+                return delta, count + 1
+
+        model = StepCountingModel()
+        norm_stats = FakeNormStats()
+        episode = _make_clean_episode(n_steps=100, gravity=-0.13)
+
+        import lwp.wm.physics_understanding as pu
+        original_rollout = pu._rollout_trajectory
+        branch_states = []
+        branch_times = []
+
+        def recording_rollout(model, norm_stats, start_state, actions, model_state=None):
+            branch_states.append(model_state)
+            ep_states = episode["states"][:, :6]
+            for t in range(len(ep_states)):
+                if np.allclose(start_state, ep_states[t], atol=1e-6):
+                    branch_times.append(t)
+                    break
+            return original_rollout(model, norm_stats, start_state, actions, model_state=model_state)
+
+        pu._rollout_trajectory = recording_rollout
+        try:
+            extract_constants_rollout(
+                model, norm_stats, [episode],
+                horizon=10, recurrent=True, warmup_steps=5,
+            )
+        finally:
+            pu._rollout_trajectory = original_rollout
+
+        assert len(branch_states) > 0, "No branches were taken"
+        for state_count, t in zip(branch_states, branch_times):
+            assert state_count == t, (
+                f"Branch at t={t}: hidden state count={state_count}, expected {t}. "
+                f"Hidden state was advanced past branch point (off-by-one)."
+            )
+
+    def test_recurrent_rollout_gravity_correct(self):
+        """Perfect-gravity recurrent model should extract correct gravity from rollouts."""
+        from lwp.wm.physics_understanding import extract_constants_rollout
+
+        class PerfectGravityGRU:
+            def eval(self): pass
+            def parameters(self): return iter([torch.zeros(1)])
+            def step(self, obs, action, model_state=None):
+                batch = obs.shape[0]
+                delta = torch.zeros(batch, 6)
+                delta[:, 3] = -0.13
+                return delta, (model_state or 0) + 1
+
+        model = PerfectGravityGRU()
+        norm_stats = FakeNormStats()
+        episode = _make_clean_episode(n_steps=100, gravity=-0.13)
+
+        results = extract_constants_rollout(
+            model, norm_stats, [episode],
+            horizon=10, recurrent=True, warmup_steps=5,
+            gravity_model=-0.13, gravity_gt=-0.13,
+        )
+
+        assert results["gravity"]["n_samples"] > 0
+        np.testing.assert_allclose(
+            results["gravity"]["model_mean"], -0.13, atol=0.02,
+        )

@@ -182,12 +182,13 @@ def _get_model_device(model) -> torch.device:
 
 
 def _predict_oracle_delta(
-    model, norm_stats, state: np.ndarray, action: np.ndarray
-) -> np.ndarray:
+    model, norm_stats, state: np.ndarray, action: np.ndarray,
+    model_state=None,
+) -> tuple[np.ndarray, object]:
     """Run one oracle prediction: GT state + action -> model delta (raw space).
 
     Normalizes state, calls model.step(), denormalizes delta.
-    Returns raw-space delta as numpy array (state_dim,).
+    Returns (raw-space delta as numpy array (state_dim,), new_model_state).
     """
     with torch.no_grad():
         # Detect device from model parameters.
@@ -202,16 +203,17 @@ def _predict_oracle_delta(
         # Normalize state.
         s_norm = (s - state_mean) / state_std
         # Model predicts normalized delta.
-        delta_norm, _ = model.step(s_norm, a, None)
+        delta_norm, new_model_state = model.step(s_norm, a, model_state)
         # Denormalize delta.
         delta_raw = delta_norm * delta_std + delta_mean
-    return delta_raw.squeeze(0).cpu().numpy()
+    return delta_raw.squeeze(0).cpu().numpy(), new_model_state
 
 
 def extract_gravity_oracle(
     model,
     norm_stats,
     episodes: list[dict],
+    recurrent: bool = False,
 ) -> dict:
     """Extract gravity constant from 1-step oracle predictions.
 
@@ -223,6 +225,7 @@ def extract_gravity_oracle(
         model: wm-ladder model with .step(obs, action, state) interface.
         norm_stats: NormStats with state_mean/std, delta_mean/std.
         episodes: List of episode dicts with 'states' (T+1, >=6) and 'actions' (T, 2).
+        recurrent: If True, thread hidden state across timesteps within each episode.
 
     Returns:
         Dict with keys: n_samples, model_mean, model_std, gt_mean, gt_std,
@@ -238,15 +241,22 @@ def extract_gravity_oracle(
         states = episode["states"][:, :6]  # 6-dim kinematic only
         actions = episode["actions"]
         n_transitions = min(len(states) - 1, len(actions))
+        model_state = None
 
         for t in range(n_transitions):
+            # Always predict to advance hidden state for recurrent models.
+            delta_pred, new_model_state = _predict_oracle_delta(
+                model, norm_stats, states[t], actions[t],
+                model_state=model_state if recurrent else None,
+            )
+            if recurrent:
+                model_state = new_model_state
+
             if not passes_general_filter(states[t], timestep=t):
                 continue
             if not passes_gravity_filter(states[t], actions[t]):
                 continue
 
-            # Oracle: feed GT state + action to model.
-            delta_pred = _predict_oracle_delta(model, norm_stats, states[t], actions[t])
             model_dvy = delta_pred[VY]
 
             # GT: actual delta from recorded episode.
@@ -274,6 +284,7 @@ def extract_gravity_oracle(
 def extract_main_thrust_oracle(
     model, norm_stats, episodes: list[dict],
     gravity_model: float, gravity_gt: float,
+    recurrent: bool = False,
 ) -> dict:
     """Extract main thrust response: effective_thrust = dvy_pred - gravity.
 
@@ -287,14 +298,21 @@ def extract_main_thrust_oracle(
         states = episode["states"][:, :6]
         actions = episode["actions"]
         n_transitions = min(len(states) - 1, len(actions))
+        model_state = None
 
         for t in range(n_transitions):
+            delta_pred, new_model_state = _predict_oracle_delta(
+                model, norm_stats, states[t], actions[t],
+                model_state=model_state if recurrent else None,
+            )
+            if recurrent:
+                model_state = new_model_state
+
             if not passes_general_filter(states[t], timestep=t):
                 continue
             if not passes_main_thrust_filter(states[t], actions[t]):
                 continue
 
-            delta_pred = _predict_oracle_delta(model, norm_stats, states[t], actions[t])
             model_thrust = delta_pred[VY] - gravity_model
             gt_dvy = states[t + 1][VY] - states[t][VY]
             gt_thrust = gt_dvy - gravity_gt
@@ -319,7 +337,8 @@ def extract_main_thrust_oracle(
 
 
 def extract_side_thrust_oracle(
-    model, norm_stats, episodes: list[dict]
+    model, norm_stats, episodes: list[dict],
+    recurrent: bool = False,
 ) -> dict:
     """Extract side thrust response: dvx_pred on side-thrust transitions."""
     model.eval()
@@ -329,14 +348,20 @@ def extract_side_thrust_oracle(
         states = episode["states"][:, :6]
         actions = episode["actions"]
         n_transitions = min(len(states) - 1, len(actions))
+        model_state = None
 
         for t in range(n_transitions):
+            delta_pred, new_model_state = _predict_oracle_delta(
+                model, norm_stats, states[t], actions[t],
+                model_state=model_state if recurrent else None,
+            )
+            if recurrent:
+                model_state = new_model_state
+
             if not passes_general_filter(states[t], timestep=t):
                 continue
             if not passes_side_thrust_filter(states[t], actions[t]):
                 continue
-
-            delta_pred = _predict_oracle_delta(model, norm_stats, states[t], actions[t])
             model_values.append(float(delta_pred[VX]))
             gt_values.append(float(states[t + 1][VX] - states[t][VX]))
             assoc_states.append(states[t].copy())
@@ -357,7 +382,8 @@ def extract_side_thrust_oracle(
 
 
 def extract_kinematics_oracle(
-    model, norm_stats, episodes: list[dict]
+    model, norm_stats, episodes: list[dict],
+    recurrent: bool = False,
 ) -> dict:
     """Extract kinematic consistency: ratio dx_pred / vx (effective dt).
 
@@ -371,15 +397,21 @@ def extract_kinematics_oracle(
         states = episode["states"][:, :6]
         actions = episode["actions"]
         n_transitions = min(len(states) - 1, len(actions))
+        model_state = None
 
         for t in range(n_transitions):
+            delta_pred, new_model_state = _predict_oracle_delta(
+                model, norm_stats, states[t], actions[t],
+                model_state=model_state if recurrent else None,
+            )
+            if recurrent:
+                model_state = new_model_state
+
             # Note: kinematic consistency holds everywhere (not just clean physics
             # region), so we skip passes_general_filter here. We only need
             # velocities to be nonzero to avoid division by zero.
             if not passes_kinematic_filter(states[t]):
                 continue
-
-            delta_pred = _predict_oracle_delta(model, norm_stats, states[t], actions[t])
             gt_dx = states[t + 1][X] - states[t][X]
 
             model_ratio = delta_pred[X] / states[t][VX]
@@ -405,7 +437,8 @@ def extract_kinematics_oracle(
 
 
 def extract_damping_oracle(
-    model, norm_stats, episodes: list[dict]
+    model, norm_stats, episodes: list[dict],
+    recurrent: bool = False,
 ) -> dict:
     """Extract angular damping rate: 1 - (next/current angular velocity).
 
@@ -422,14 +455,20 @@ def extract_damping_oracle(
         states = episode["states"][:, :6]
         actions = episode["actions"]
         n_transitions = min(len(states) - 1, len(actions))
+        model_state = None
 
         for t in range(n_transitions):
+            delta_pred, new_model_state = _predict_oracle_delta(
+                model, norm_stats, states[t], actions[t],
+                model_state=model_state if recurrent else None,
+            )
+            if recurrent:
+                model_state = new_model_state
+
             if not passes_general_filter(states[t], timestep=t):
                 continue
             if not passes_angular_damping_filter(states[t], actions[t]):
                 continue
-
-            delta_pred = _predict_oracle_delta(model, norm_stats, states[t], actions[t])
             model_next_avel = states[t][ANGULAR_VEL] + delta_pred[ANGULAR_VEL]
             gt_next_avel = states[t + 1][ANGULAR_VEL]
 
@@ -461,6 +500,7 @@ def extract_damping_oracle(
 
 def extract_angle_thrust_oracle(
     model, norm_stats, episodes: list[dict], gravity_model: float,
+    recurrent: bool = False,
 ) -> dict:
     """Extract angle-thrust coupling: ratio dvx / (dvy - gravity).
 
@@ -476,14 +516,20 @@ def extract_angle_thrust_oracle(
         states = episode["states"][:, :6]
         actions = episode["actions"]
         n_transitions = min(len(states) - 1, len(actions))
+        model_state = None
 
         for t in range(n_transitions):
+            delta_pred, new_model_state = _predict_oracle_delta(
+                model, norm_stats, states[t], actions[t],
+                model_state=model_state if recurrent else None,
+            )
+            if recurrent:
+                model_state = new_model_state
+
             if not passes_general_filter(states[t], timestep=t):
                 continue
             if not passes_angle_thrust_filter(states[t], actions[t], gravity_model):
                 continue
-
-            delta_pred = _predict_oracle_delta(model, norm_stats, states[t], actions[t])
 
             dvy_thrust = delta_pred[VY] - gravity_model
             if abs(dvy_thrust) < 0.01:
@@ -686,11 +732,8 @@ def extract_constants_rollout(
             model_state = None
             with torch.no_grad():
                 for t in range(n_transitions):
-                    s = torch.tensor(states[t], dtype=torch.float32, device=device).unsqueeze(0)
-                    s_norm = (s - state_mean) / state_std
-                    a = torch.tensor(actions[t], dtype=torch.float32, device=device).unsqueeze(0)
-                    _, model_state = model.step(s_norm, a, model_state)
-
+                    # Branch BEFORE advancing hidden state so action[t]
+                    # is applied exactly once (inside the rollout).
                     if t >= warmup_steps and (t - warmup_steps) % horizon == 0 \
                             and t + horizon < n_transitions:
                         window_actions = actions[t:t + horizon]
@@ -702,6 +745,12 @@ def extract_constants_rollout(
                             traj, window_actions, states, t, horizon,
                             accum, gravity_model, gravity_gt,
                         )
+
+                    # Then advance hidden state via teacher-forcing.
+                    s = torch.tensor(states[t], dtype=torch.float32, device=device).unsqueeze(0)
+                    s_norm = (s - state_mean) / state_std
+                    a = torch.tensor(actions[t], dtype=torch.float32, device=device).unsqueeze(0)
+                    _, model_state = model.step(s_norm, a, model_state)
         else:
             t = 3  # Skip first 3 steps (general filter).
             while t + horizon < n_transitions:
@@ -970,7 +1019,7 @@ def generate_report(
     import warnings
 
     # 1. Gravity (oracle) — extracted first because thrust depends on it.
-    grav_oracle = extract_gravity_oracle(model, norm_stats, episodes)
+    grav_oracle = extract_gravity_oracle(model, norm_stats, episodes, recurrent=recurrent)
     if grav_oracle["n_samples"] == 0:
         warnings.warn(
             "Gravity extraction got 0 qualifying samples. "
@@ -983,20 +1032,22 @@ def generate_report(
     # 2. Main thrust (oracle, uses gravity estimates).
     thrust_oracle = extract_main_thrust_oracle(
         model, norm_stats, episodes, gravity_model, gravity_gt,
+        recurrent=recurrent,
     )
 
     # 3. Side thrust (oracle).
-    side_oracle = extract_side_thrust_oracle(model, norm_stats, episodes)
+    side_oracle = extract_side_thrust_oracle(model, norm_stats, episodes, recurrent=recurrent)
 
     # 4. Kinematics (oracle).
-    kin_oracle = extract_kinematics_oracle(model, norm_stats, episodes)
+    kin_oracle = extract_kinematics_oracle(model, norm_stats, episodes, recurrent=recurrent)
 
     # 5. Angular damping (oracle).
-    damp_oracle = extract_damping_oracle(model, norm_stats, episodes)
+    damp_oracle = extract_damping_oracle(model, norm_stats, episodes, recurrent=recurrent)
 
     # 6. Angle-thrust coupling (oracle).
     angle_oracle = extract_angle_thrust_oracle(
         model, norm_stats, episodes, gravity_model,
+        recurrent=recurrent,
     )
 
     # Rollout extraction for all constants at once.
