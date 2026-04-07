@@ -74,3 +74,29 @@ def test_rollout_raw_space_no_warmup_unchanged():
     states = _rollout_raw_space(model, s0, actions, ns)
     # After 5 steps of +0.1 delta, state should be 0.5
     assert abs(states[0, 5, 0].item() - 0.5) < 0.01
+
+
+def test_rollout_raw_space_3d_delta():
+    """_rollout_raw_space should work with a model that outputs 3D deltas."""
+    import pytest
+
+    class Force3Model:
+        def step(self, obs, action, model_state=None):
+            batch = obs.shape[0]
+            delta = torch.zeros(batch, 3)
+            delta[:, 1] = -0.13  # gravity on Δvy
+            return delta, model_state
+        def initial_state(self, batch_size, device='cpu'):
+            return None
+
+    model = Force3Model()
+    ns = NormStats(
+        state_mean=torch.zeros(6), state_std=torch.ones(6),
+        delta_mean=torch.zeros(3), delta_std=torch.ones(3),
+    )
+    s0 = torch.zeros(1, 6)
+    actions = torch.zeros(1, 5, 2)
+    result = _rollout_raw_space(model, s0, actions, ns)
+    assert result.shape == (1, 6, 6)  # [batch, T+1, state_dim=6]
+    # vy should decrease by 0.13 each step
+    assert result[0, 1, 3].item() == pytest.approx(-0.13, abs=0.01)

@@ -5,6 +5,7 @@ import numpy as np
 import torch
 
 from lwp.data.normalization import NormStats, normalize, denormalize
+from lwp.training.integration import hybrid_state_update
 
 
 @torch.no_grad()
@@ -28,7 +29,8 @@ def per_dim_mse(model, data_loader, norm_stats: NormStats,
 
 
 def _rollout_raw_space(model, s0, actions, norm_stats,
-                       warmup_states=None, warmup_actions=None):
+                       warmup_states=None, warmup_actions=None,
+                       subsample: int = 1):
     """Open-loop rollout in raw space with optional warmup for recurrent models.
 
     If warmup_states/warmup_actions are provided, teacher-forces through them
@@ -48,7 +50,7 @@ def _rollout_raw_space(model, s0, actions, norm_stats,
         s_n = normalize(s, norm_stats.state_mean, norm_stats.state_std)
         delta_n, model_state = model.step(s_n, actions[:, t], model_state)
         delta = denormalize(delta_n, norm_stats.delta_mean, norm_stats.delta_std)
-        s = s + delta
+        s = hybrid_state_update(s, delta, subsample=subsample)
         states.append(s)
     return torch.stack(states, dim=1)  # [batch, T+1, state_dim]
 
@@ -57,7 +59,8 @@ def _rollout_raw_space(model, s0, actions, norm_stats,
 def horizon_error_curve(model, dataset, norm_stats: NormStats,
                         horizons: list[int] = (1, 5, 10, 20, 50, 100),
                         n_rollouts: int = 50, device: str = "cpu",
-                        warmup_steps: int = 0) -> dict:
+                        warmup_steps: int = 0,
+                        subsample: int = 1) -> dict:
     """MSE at each horizon via autoregressive rollout (Eval B).
 
     Rolls out in raw space (normalize/denormalize at each step) to
@@ -88,7 +91,8 @@ def horizon_error_curve(model, dataset, norm_stats: NormStats,
         warmup_a = actions[:warmup_steps] if warmup_steps > 0 else None
         pred_states = _rollout_raw_space(model, s0, acts, ns,
                                          warmup_states=warmup_s,
-                                         warmup_actions=warmup_a)
+                                         warmup_actions=warmup_a,
+                                         subsample=subsample)
 
         for h in horizons:
             if h > T - warmup_steps:
@@ -113,7 +117,8 @@ def horizon_error_curve(model, dataset, norm_stats: NormStats,
 def cumulative_trajectory_mse(model, dataset, norm_stats: NormStats,
                                horizons: list[int] = (1, 5, 10, 20, 50),
                                n_rollouts: int = 50, device: str = "cpu",
-                               warmup_steps: int = 0) -> dict:
+                               warmup_steps: int = 0,
+                               subsample: int = 1) -> dict:
     """Average MSE across all steps 1..h for each horizon (Eval B').
 
     Unlike horizon_error_curve which measures error at step h only,
@@ -145,7 +150,8 @@ def cumulative_trajectory_mse(model, dataset, norm_stats: NormStats,
         warmup_a = actions[:warmup_steps] if warmup_steps > 0 else None
         pred_states = _rollout_raw_space(model, s0, acts, ns,
                                          warmup_states=warmup_s,
-                                         warmup_actions=warmup_a)
+                                         warmup_actions=warmup_a,
+                                         subsample=subsample)
 
         for h in horizons:
             if h > T - warmup_steps:
@@ -172,7 +178,8 @@ def cumulative_trajectory_mse(model, dataset, norm_stats: NormStats,
 def rollout_error_metrics(model, dataset, norm_stats: NormStats,
                           horizons: list[int] = (1, 5, 10, 20, 50),
                           n_rollouts: int = 50, device: str = "cpu",
-                          warmup_steps: int = 0) -> tuple[dict, dict]:
+                          warmup_steps: int = 0,
+                          subsample: int = 1) -> tuple[dict, dict]:
     """Combined endpoint and cumulative trajectory MSE from one rollout pass.
 
     Does the same rollouts as horizon_error_curve + cumulative_trajectory_mse
@@ -205,7 +212,8 @@ def rollout_error_metrics(model, dataset, norm_stats: NormStats,
         warmup_a = actions[:warmup_steps] if warmup_steps > 0 else None
         pred_states = _rollout_raw_space(model, s0, acts, ns,
                                          warmup_states=warmup_s,
-                                         warmup_actions=warmup_a)
+                                         warmup_actions=warmup_a,
+                                         subsample=subsample)
 
         for h in horizons:
             if h > T - warmup_steps:
