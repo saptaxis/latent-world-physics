@@ -240,7 +240,8 @@ class PixelDynamicsValidationCallback(TrainCallback):
                  checkpoint_dir: str | None = None,
                  training_mode: str = "latent_mse",
                  rollout_k: int = 1,
-                 kl_weight: float = 1.0):
+                 kl_weight: float = 1.0,
+                 sampling_prob: float = 0.0):
         self.val_loader = val_loader
         self.vae = vae
         self.every_n_steps = every_n_steps
@@ -251,6 +252,7 @@ class PixelDynamicsValidationCallback(TrainCallback):
         self.training_mode = training_mode
         self.rollout_k = rollout_k
         self.kl_weight = kl_weight
+        self.sampling_prob = sampling_prob
         self.best_val_loss = float("inf")
         self.patience_counter = 0
         self.last_val_step = -1
@@ -278,7 +280,7 @@ class PixelDynamicsValidationCallback(TrainCallback):
         else:
             # Default: single-step predict_sequence + MSE (original behavior)
             z_pred, _ = ctx.model.predict_sequence(
-                z_seq, actions, teacher_forcing=0.0)
+                z_seq, actions, teacher_forcing=self.sampling_prob)
             return latent_dynamics_loss(z_pred[:, :-1], z_seq[:, 1:])
 
     def on_step(self, ctx) -> bool:

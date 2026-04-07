@@ -191,8 +191,9 @@ def main():
     writer = SummaryWriter(log_dir=tb_dir)
     # Build callbacks
     callbacks = []
+    val_callback = None
     if not args.no_callbacks:
-        callbacks.append(ValidationCallback(
+        val_callback = ValidationCallback(
             val_loader=val_loader,
             norm_stats=norm_stats,
             training_mode=config.training_mode,
@@ -202,7 +203,8 @@ def main():
             rollout_k=config.rollout_k,
             kl_weight=config.kl_weight,
             dim_weights=config.dim_weights,
-        ))
+        )
+        callbacks.append(val_callback)
         callbacks.append(CheckpointCallback(
             checkpoint_dir=str(run_dir),
             every_n_steps=config.ckpt_every,
@@ -286,6 +288,11 @@ def main():
                     current_sampling_prob = sampling_schedule(
                         epoch, config.epochs,
                         start=config.sampling_start, end=config.sampling_end)
+
+            # Sync validation callback with current schedule
+            if val_callback is not None:
+                val_callback.sampling_prob = current_sampling_prob
+                val_callback.rollout_k = current_k
 
             ctx.epoch = epoch
             train_metrics = train_epoch(

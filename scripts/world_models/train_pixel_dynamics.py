@@ -486,17 +486,18 @@ def main():
         print(f"  Selected {len(detail_paths)} val episodes for detailed callbacks")
 
     # --- Construct callbacks ---
+    pixel_val_callback = PixelDynamicsValidationCallback(
+        val_loader=val_loader, vae=vae,
+        every_n_steps=args.val_every, patience=args.patience,
+        checkpoint_dir=ckpt_dir,
+        training_mode=args.training_mode,
+        rollout_k=args.rollout_k,
+        kl_weight=args.kl_weight,
+    )
     callbacks = [
         # Core validation + early stopping -- uses the same loss function as
         # the training loop so val loss is directly comparable
-        PixelDynamicsValidationCallback(
-            val_loader=val_loader, vae=vae,
-            every_n_steps=args.val_every, patience=args.patience,
-            checkpoint_dir=ckpt_dir,
-            training_mode=args.training_mode,
-            rollout_k=args.rollout_k,
-            kl_weight=args.kl_weight,
-        ),
+        pixel_val_callback,
         CheckpointCallback(checkpoint_dir=ckpt_dir, every_n_steps=args.ckpt_every),
         # DreamGridCallback now takes val_dataset for random episode sampling
         DreamGridCallback(vae=vae, val_dataset=val_ds,
@@ -586,6 +587,7 @@ def main():
             args.sampling_start, args.sampling_end,
             args.sampling_warmup_frac,
         )
+        pixel_val_callback.sampling_prob = sampling_prob
 
         # Pass training_mode params so the loop dispatches to the right loss
         result = pixel_dynamics_train_epoch(
