@@ -65,3 +65,28 @@ def test_detect_dims_missing_dir():
     import pytest
     with pytest.raises(FileNotFoundError):
         detect_dims("/nonexistent/path")
+
+
+def test_force_target_slicing(episode_dir):
+    """Dataset with force_target_indices returns 3D deltas."""
+    ds = EpisodeDataset(
+        str(episode_dir), state_dim=6, mode="single_step",
+        force_target_indices=[2, 3, 5],
+    )
+    state, action, delta = ds[0]
+    assert state.shape == (6,)
+    assert delta.shape == (3,)
+
+
+def test_force_target_values_match_slice(episode_dir):
+    """3D deltas should be the [vx, vy, ang_vel] slice of 6D deltas."""
+    ds_6d = EpisodeDataset(str(episode_dir), state_dim=6, mode="single_step")
+    ds_3d = EpisodeDataset(
+        str(episode_dir), state_dim=6, mode="single_step",
+        force_target_indices=[2, 3, 5],
+    )
+    _, _, delta_6d = ds_6d[0]
+    _, _, delta_3d = ds_3d[0]
+    torch.testing.assert_close(delta_3d[0], delta_6d[2])  # vx
+    torch.testing.assert_close(delta_3d[1], delta_6d[3])  # vy
+    torch.testing.assert_close(delta_3d[2], delta_6d[5])  # ang_vel

@@ -50,3 +50,16 @@ def test_norm_stats_serialization():
     restored = NormStats.from_dict(d)
     assert torch.allclose(stats.state_mean, restored.state_mean)
     assert torch.allclose(stats.delta_std, restored.delta_std)
+
+
+def test_norm_stats_3d_delta(episode_dir):
+    """NormStats with 3D deltas should have delta_mean/std of shape (3,)."""
+    from lwp.data.loader import EpisodeDataset
+    ds = EpisodeDataset(
+        str(episode_dir), state_dim=6, mode="single_step",
+        force_target_indices=[2, 3, 5],
+    )
+    ns = compute_norm_stats(ds.episode_dicts())
+    assert ns.state_mean.shape == (6,)
+    assert ns.delta_mean.shape == (3,)
+    assert ns.delta_std.shape == (3,)

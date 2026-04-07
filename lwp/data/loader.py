@@ -42,12 +42,14 @@ class EpisodeDataset(Dataset):
         seed: int = 0,
         subsample: int = 1,
         max_episodes_per_path: int | None = None,
+        force_target_indices: list[int] | None = None,
     ):
         self.state_dim = state_dim
         self.action_dim = 2
         self.mode = mode
         self.seq_len = seq_len
         self.subsample = subsample
+        self.force_target_indices = force_target_indices
 
         # Normalize data_path to list
         if isinstance(data_path, (str, Path)):
@@ -106,6 +108,10 @@ class EpisodeDataset(Dataset):
             self.states.append(s)
             self.actions.append(a)
             self.deltas.append((s[1:] - s[:-1]).astype(np.float32))
+
+        # Slice deltas to force-target dimensions if requested
+        if self.force_target_indices is not None:
+            self.deltas = [d[:, self.force_target_indices] for d in self.deltas]
 
         self.n_episodes = len(self.states)
 
