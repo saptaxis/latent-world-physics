@@ -212,12 +212,14 @@ class RolloutMetricsCallback(TrainCallback):
 
     def __init__(self, dataset, norm_stats: NormStats,
                  horizons: list[int] | None = None,
-                 every_n_steps: int = 2000, n_rollouts: int = 10):
+                 every_n_steps: int = 2000, n_rollouts: int = 10,
+                 warmup_steps: int = 0):
         self.dataset = dataset
         self.norm_stats = norm_stats
         self.horizons = horizons or [1, 5, 10, 20, 50]
         self.every_n_steps = every_n_steps
         self.n_rollouts = n_rollouts
+        self.warmup_steps = warmup_steps
 
     def on_step(self, ctx):
         if ctx.global_step == 0 or ctx.global_step % self.every_n_steps != 0:
@@ -226,7 +228,7 @@ class RolloutMetricsCallback(TrainCallback):
         endpoint, cumul = rollout_error_metrics(
             ctx.model, self.dataset, self.norm_stats,
             horizons=self.horizons, n_rollouts=self.n_rollouts,
-            device=ctx.device,
+            device=ctx.device, warmup_steps=self.warmup_steps,
         )
         ctx.extras["horizon_errors"] = {h: float(v.mean()) for h, v in endpoint.items()}
         ctx.extras["cumul_horizon_errors"] = {h: float(v.mean()) for h, v in cumul.items()}

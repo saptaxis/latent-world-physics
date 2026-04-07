@@ -215,11 +215,13 @@ def main():
             every_n_steps=config.rollout_every,
             dim_names=get_dim_names(config.dim_names, config.state_dim),
         ))
+        recurrent = config.arch in ("gru", "rssm")
         callbacks.append(RolloutMetricsCallback(
             dataset=val_ds,
             norm_stats=norm_stats,
             every_n_steps=config.rollout_every,
             n_rollouts=config.rollout_n_rollouts,
+            warmup_steps=50 if recurrent else 0,
         ))
         callbacks.append(GradNormCallback(every_n_steps=config.grad_norm_every))
         callbacks.append(NaNDetectionCallback())

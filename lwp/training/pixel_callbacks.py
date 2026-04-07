@@ -280,7 +280,7 @@ class PixelDynamicsValidationCallback(TrainCallback):
         else:
             # Default: single-step predict_sequence + MSE (original behavior)
             z_pred, _ = ctx.model.predict_sequence(
-                z_seq, actions, teacher_forcing=self.sampling_prob)
+                z_seq, actions, teacher_forcing=1.0 - self.sampling_prob)
             return latent_dynamics_loss(z_pred[:, :-1], z_seq[:, 1:])
 
     def on_step(self, ctx) -> bool:
