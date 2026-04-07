@@ -736,3 +736,58 @@ class TestWarmupDiagnostic:
         mse = result["oracle_mse_by_warmup"]
         # Error should decrease (or stay flat) with more warmup.
         assert mse[0] >= mse[50]
+
+
+class FakeGRUModelColdWarm:
+    """GRU-like model whose prediction depends on hidden state.
+
+    Returns gravity_cold on first step (no hidden state),
+    gravity_warm on subsequent steps (has hidden state).
+    """
+
+    def __init__(self, gravity_cold=-0.5, gravity_warm=-0.13):
+        self.gravity_cold = gravity_cold
+        self.gravity_warm = gravity_warm
+
+    def eval(self):
+        pass
+
+    def parameters(self):
+        return iter([torch.zeros(1)])
+
+    def step(self, obs, action, model_state=None):
+        batch = obs.shape[0]
+        delta = torch.zeros(batch, 6)
+        if model_state is None:
+            delta[:, 3] = self.gravity_cold
+            new_state = torch.ones(1)
+        else:
+            delta[:, 3] = self.gravity_warm
+            new_state = model_state
+        return delta, new_state
+
+
+class TestRecurrentOracleExtraction:
+    """Test that oracle extraction threads hidden state for recurrent models."""
+
+    def test_oracle_uses_hidden_state_for_recurrent(self):
+        from lwp.wm.physics_understanding import extract_gravity_oracle
+
+        model = FakeGRUModelColdWarm(gravity_cold=-0.5, gravity_warm=-0.13)
+        norm_stats = FakeNormStats()
+        episode = _make_clean_episode(n_steps=50, gravity=-0.13)
+        result = extract_gravity_oracle(model, norm_stats, [episode], recurrent=True)
+        assert result["n_samples"] > 5
+        # With recurrent=True, most steps use warm prediction (-0.13)
+        np.testing.assert_allclose(result["model_mean"], -0.13, atol=0.01)
+
+    def test_oracle_cold_start_without_recurrent_flag(self):
+        from lwp.wm.physics_understanding import extract_gravity_oracle
+
+        model = FakeGRUModelColdWarm(gravity_cold=-0.5, gravity_warm=-0.13)
+        norm_stats = FakeNormStats()
+        episode = _make_clean_episode(n_steps=50, gravity=-0.13)
+        result = extract_gravity_oracle(model, norm_stats, [episode], recurrent=False)
+        assert result["n_samples"] > 5
+        # Without recurrent, every step is cold-start (-0.5)
+        np.testing.assert_allclose(result["model_mean"], -0.5, atol=0.01)
