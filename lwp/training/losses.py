@@ -5,6 +5,7 @@ import torch
 import torch.nn.functional as F
 
 from lwp.data.normalization import NormStats, normalize, denormalize
+from lwp.training.integration import hybrid_state_update, FORCE_TARGET_INDICES
 
 
 def _compute_dim_weights(
@@ -50,7 +51,8 @@ def single_step_loss(model, batch, norm_stats: NormStats,
 
 
 def multi_step_loss(model, batch, norm_stats: NormStats, k: int,
-                    dim_weights: str | None = None) -> torch.Tensor:
+                    dim_weights: str | None = None,
+                    subsample: int = 1) -> torch.Tensor:
     """MSE on k-step autoregressive rollout.
 
     Rollout in NORMALIZED space: the model receives and produces normalized
@@ -76,6 +78,8 @@ def multi_step_loss(model, batch, norm_stats: NormStats, k: int,
     state_std = norm_stats.state_std
     state_mean = norm_stats.state_mean
 
+    delta_dim = delta_mean.shape[-1]
+
     # Rollout in normalized space
     pred_deltas_n = []
     s_n = normalize(s0, state_mean, state_std)
@@ -83,13 +87,22 @@ def multi_step_loss(model, batch, norm_stats: NormStats, k: int,
     for t in range(k):
         delta_n, model_state = model.step(s_n, actions_k[:, t], model_state)
         pred_deltas_n.append(delta_n)
-        # Accumulate in normalized space:
+        # Accumulate state for next step
         delta_raw = delta_n * (delta_std + 1e-8) + delta_mean
-        s_n = s_n + delta_raw / (state_std + 1e-8)
+        if delta_dim < state_mean.shape[-1]:
+            # 3D force target: hybrid integration in raw space
+            s_raw = denormalize(s_n, state_mean, state_std)
+            s_raw_next = hybrid_state_update(s_raw, delta_raw, subsample=subsample)
+            s_n = normalize(s_raw_next, state_mean, state_std)
+        else:
+            # 6D: original efficient path (unchanged)
+            s_n = s_n + delta_raw / (state_std + 1e-8)
     pred_deltas_n = torch.stack(pred_deltas_n, dim=1)
 
     # Loss in delta-normalized space
     true_deltas = true_states_k[:, 1:] - true_states_k[:, :-1]
+    if delta_dim < true_deltas.shape[-1]:
+        true_deltas = true_deltas[:, :, FORCE_TARGET_INDICES]
     true_deltas_n = normalize(true_deltas, delta_mean, delta_std)
 
     w = _compute_dim_weights(dim_weights, norm_stats)
@@ -98,7 +111,8 @@ def multi_step_loss(model, batch, norm_stats: NormStats, k: int,
 
 def scheduled_sampling_loss(model, batch, norm_stats: NormStats,
                             k: int, sampling_prob: float,
-                            dim_weights: str | None = None) -> torch.Tensor:
+                            dim_weights: str | None = None,
+                            subsample: int = 1) -> torch.Tensor:
     """MSE on k-step rollout with scheduled sampling."""
     state_seq, action_seq = batch
     s0 = state_seq[:, 0]
@@ -110,6 +124,8 @@ def scheduled_sampling_loss(model, batch, norm_stats: NormStats,
     state_std = norm_stats.state_std
     state_mean = norm_stats.state_mean
 
+    delta_dim = delta_mean.shape[-1]
+
     pred_deltas_n = []
     s_n = normalize(s0, state_mean, state_std)
     model_state = model.initial_state(s0.shape[0], device=s0.device)
@@ -117,9 +133,14 @@ def scheduled_sampling_loss(model, batch, norm_stats: NormStats,
     for t in range(k):
         delta_n, model_state = model.step(s_n, actions_k[:, t], model_state)
         pred_deltas_n.append(delta_n)
-        # Predicted next state in normalized space
+        # Predicted next state
         delta_raw = delta_n * (delta_std + 1e-8) + delta_mean
-        s_n_pred = s_n + delta_raw / (state_std + 1e-8)
+        if delta_dim < state_mean.shape[-1]:
+            s_raw = denormalize(s_n, state_mean, state_std)
+            s_raw_next = hybrid_state_update(s_raw, delta_raw, subsample=subsample)
+            s_n_pred = normalize(s_raw_next, state_mean, state_std)
+        else:
+            s_n_pred = s_n + delta_raw / (state_std + 1e-8)
         # Scheduled sampling: use true or predicted
         if t + 1 < k:
             use_pred = torch.rand(1).item() < sampling_prob
@@ -130,6 +151,8 @@ def scheduled_sampling_loss(model, batch, norm_stats: NormStats,
 
     pred_deltas_n = torch.stack(pred_deltas_n, dim=1)
     true_deltas = true_states_k[:, 1:] - true_states_k[:, :-1]
+    if delta_dim < true_deltas.shape[-1]:
+        true_deltas = true_deltas[:, :, FORCE_TARGET_INDICES]
     true_deltas_n = normalize(true_deltas, delta_mean, delta_std)
 
     w = _compute_dim_weights(dim_weights, norm_stats)
@@ -138,7 +161,8 @@ def scheduled_sampling_loss(model, batch, norm_stats: NormStats,
 
 def elbo_loss(model, batch, norm_stats: NormStats, k: int,
               kl_weight: float = 1.0,
-              dim_weights: str | None = None) -> torch.Tensor:
+              dim_weights: str | None = None,
+              subsample: int = 1) -> torch.Tensor:
     """ELBO loss for RSSM: reconstruction + KL divergence."""
     state_seq, action_seq = batch
     s0 = state_seq[:, 0]
@@ -150,6 +174,8 @@ def elbo_loss(model, batch, norm_stats: NormStats, k: int,
     state_std = norm_stats.state_std
     state_mean = norm_stats.state_mean
 
+    delta_dim = delta_mean.shape[-1]
+
     pred_deltas_n = []
     kl_terms = []
     s_n = normalize(s0, state_mean, state_std)
@@ -160,10 +186,17 @@ def elbo_loss(model, batch, norm_stats: NormStats, k: int,
         pred_deltas_n.append(delta_n)
         kl_terms.append(model.kl_loss(model_state))
         delta_raw = delta_n * (delta_std + 1e-8) + delta_mean
-        s_n = s_n + delta_raw / (state_std + 1e-8)
+        if delta_dim < state_mean.shape[-1]:
+            s_raw = denormalize(s_n, state_mean, state_std)
+            s_raw_next = hybrid_state_update(s_raw, delta_raw, subsample=subsample)
+            s_n = normalize(s_raw_next, state_mean, state_std)
+        else:
+            s_n = s_n + delta_raw / (state_std + 1e-8)
 
     pred_deltas_n = torch.stack(pred_deltas_n, dim=1)
     true_deltas = true_states_k[:, 1:] - true_states_k[:, :-1]
+    if delta_dim < true_deltas.shape[-1]:
+        true_deltas = true_deltas[:, :, FORCE_TARGET_INDICES]
     true_deltas_n = normalize(true_deltas, delta_mean, delta_std)
 
     w = _compute_dim_weights(dim_weights, norm_stats)

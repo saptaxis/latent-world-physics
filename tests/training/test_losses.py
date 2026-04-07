@@ -309,6 +309,71 @@ def test_multi_step_normalized_accumulation():
         assert p.grad.isfinite().all(), f"Non-finite gradient for {name}"
 
 
+class TestForce3Losses:
+    """Losses should work with delta_dim=3 models."""
+
+    def _make_3d_norm_stats(self):
+        return NormStats(
+            state_mean=torch.zeros(6), state_std=torch.ones(6),
+            delta_mean=torch.zeros(3), delta_std=torch.ones(3),
+        )
+
+    def test_single_step_loss_3d(self):
+        model = MLPModel(state_dim=6, action_dim=2, delta_dim=3)
+        ns = self._make_3d_norm_stats()
+        obs = torch.randn(8, 6)
+        actions = torch.randn(8, 2)
+        true_deltas = torch.randn(8, 3)
+        batch = (obs, actions, true_deltas)
+        loss = single_step_loss(model, batch, ns)
+        assert loss.dim() == 0
+        loss.backward()
+
+    def test_multi_step_loss_3d(self):
+        model = MLPModel(state_dim=6, action_dim=2, delta_dim=3)
+        ns = self._make_3d_norm_stats()
+        state_seq = torch.randn(4, 11, 6)
+        action_seq = torch.randn(4, 10, 2)
+        batch = (state_seq, action_seq)
+        loss = multi_step_loss(model, batch, ns, k=5)
+        assert loss.dim() == 0
+        loss.backward()
+
+    def test_multi_step_loss_3d_gru(self):
+        from lwp.models.gru import GRUModel
+        model = GRUModel(state_dim=6, action_dim=2, delta_dim=3)
+        ns = self._make_3d_norm_stats()
+        state_seq = torch.randn(4, 11, 6)
+        action_seq = torch.randn(4, 10, 2)
+        batch = (state_seq, action_seq)
+        loss = multi_step_loss(model, batch, ns, k=5)
+        assert loss.dim() == 0
+        loss.backward()
+
+    def test_scheduled_sampling_loss_3d(self):
+        from lwp.models.gru import GRUModel
+        model = GRUModel(state_dim=6, action_dim=2, delta_dim=3)
+        ns = self._make_3d_norm_stats()
+        state_seq = torch.randn(4, 11, 6)
+        action_seq = torch.randn(4, 10, 2)
+        batch = (state_seq, action_seq)
+        loss = scheduled_sampling_loss(model, batch, ns, k=5, sampling_prob=0.3)
+        assert loss.dim() == 0
+        loss.backward()
+
+    def test_elbo_loss_3d(self):
+        from lwp.models.rssm import RSSMModel
+        model = RSSMModel(state_dim=6, action_dim=2, deter_dim=32, stoch_dim=8,
+                          hidden_dim=16, delta_dim=3)
+        ns = self._make_3d_norm_stats()
+        state_seq = torch.randn(4, 11, 6)
+        action_seq = torch.randn(4, 10, 2)
+        batch = (state_seq, action_seq)
+        loss = elbo_loss(model, batch, ns, k=5)
+        assert loss.dim() == 0
+        loss.backward()
+
+
 def test_multi_step_k1_matches_single_step_with_real_stats():
     """Multi-step k=1 should give same loss as single-step even with non-trivial stats."""
     torch.manual_seed(42)

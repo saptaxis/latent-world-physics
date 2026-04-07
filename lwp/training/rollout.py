@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import torch
 
+from lwp.training.integration import hybrid_state_update
+
 
 def rollout_open_loop(model, s0, actions, model_state=None):
     """Autoregressive rollout using model's own predictions.
@@ -29,7 +31,7 @@ def rollout_open_loop(model, s0, actions, model_state=None):
     )
     for t in range(actions.shape[1]):
         delta, ms = model.step(s, actions[:, t], ms)
-        s = s + delta
+        s = hybrid_state_update(s, delta)
         deltas.append(delta)
         states.append(s)
     return torch.stack(states, dim=1), torch.stack(deltas, dim=1), ms
@@ -104,7 +106,7 @@ def rollout_scheduled_sampling(model, true_states, actions, sampling_prob,
     for t in range(actions.shape[1]):
         delta, ms = model.step(s_prev, actions[:, t], ms)
         deltas.append(delta)
-        s_pred = s_prev + delta
+        s_pred = hybrid_state_update(s_prev, delta)
         if t + 1 < true_states.shape[1]:
             use_pred = torch.rand(1).item() < sampling_prob
             s_prev = s_pred if use_pred else true_states[:, t + 1]
