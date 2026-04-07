@@ -11,6 +11,7 @@ from lwp.models.rssm import RSSMModel
 
 def build_model(config: RunConfig):
     """Construct a WorldModel from config."""
+    delta_dim = getattr(config, 'delta_dim', config.state_dim)
     if config.arch == "copy":
         return CopyStateModel(state_dim=config.state_dim)
     elif config.arch == "linear":
@@ -26,6 +27,7 @@ def build_model(config: RunConfig):
             hidden_dims=params.get("hidden_dims", [256, 256]),
             activation=params.get("activation", "relu"),
             dropout=params.get("dropout", 0.0),
+            delta_dim=delta_dim,
         )
     elif config.arch == "gru":
         params = config.arch_params
@@ -36,6 +38,7 @@ def build_model(config: RunConfig):
             num_layers=params.get("num_layers", 1),
             encoder_dims=params.get("encoder_dims"),
             decoder_dims=params.get("decoder_dims"),
+            delta_dim=delta_dim,
         )
     elif config.arch == "rssm":
         params = config.arch_params
@@ -46,6 +49,7 @@ def build_model(config: RunConfig):
             stoch_dim=params.get("stoch_dim", 30),
             hidden_dim=params.get("hidden_dim", 200),
             encoder_dims=params.get("encoder_dims"),
+            delta_dim=delta_dim,
         )
     else:
         raise ValueError(

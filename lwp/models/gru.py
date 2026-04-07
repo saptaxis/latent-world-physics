@@ -32,10 +32,13 @@ class GRUModel(WorldModel):
         num_layers: int = 1,
         encoder_dims: list[int] = None,
         decoder_dims: list[int] = None,
+        delta_dim: int = None,
     ):
         super().__init__()
         self.hidden_dim = hidden_dim
         self.num_layers = num_layers
+        if delta_dim is None:
+            delta_dim = state_dim
 
         # Encoder: [obs, action] -> gru_input_dim
         if encoder_dims is None:
@@ -67,7 +70,7 @@ class GRUModel(WorldModel):
             dec_layers.append(nn.Linear(in_dim, h))
             dec_layers.append(nn.ReLU())
             in_dim = h
-        dec_layers.append(nn.Linear(in_dim, state_dim))
+        dec_layers.append(nn.Linear(in_dim, delta_dim))
         self.decoder = nn.Sequential(*dec_layers)
 
     def initial_state(self, batch_size: int, device=None):

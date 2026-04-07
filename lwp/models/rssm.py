@@ -58,12 +58,15 @@ class RSSMModel(WorldModel):
         stoch_dim: int = 30,
         hidden_dim: int = 200,
         encoder_dims: list[int] = None,
+        delta_dim: int = None,
     ):
         super().__init__()
         self.state_dim = state_dim
         self.action_dim = action_dim
         self.deter_dim = deter_dim
         self.stoch_dim = stoch_dim
+        if delta_dim is None:
+            delta_dim = state_dim
 
         # Input projection: [prev_stoch, action] -> deter_dim for GRU input
         self.input_proj = nn.Linear(stoch_dim + action_dim, deter_dim)
@@ -88,7 +91,7 @@ class RSSMModel(WorldModel):
         self.posterior_net = _build_mlp(deter_dim + enc_out_dim, [hidden_dim], stoch_dim * 2)
 
         # Decoder: [h_t, stoch_t] -> delta
-        self.decoder = _build_mlp(deter_dim + stoch_dim, [hidden_dim], state_dim)
+        self.decoder = _build_mlp(deter_dim + stoch_dim, [hidden_dim], delta_dim)
 
     def initial_state(self, batch_size: int, device=None):
         """Return zero RSSMState."""

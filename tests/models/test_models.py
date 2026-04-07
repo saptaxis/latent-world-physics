@@ -260,3 +260,50 @@ def test_build_copy():
     cfg = RunConfig(arch="copy", data_path="/tmp", state_dim=8, action_dim=2)
     model = build_model(cfg)
     assert isinstance(model, CopyStateModel)
+
+
+class TestForce3DOutput:
+    """Models with delta_dim=3 should output [batch, 3]."""
+
+    def test_mlp_delta_dim_3(self):
+        from lwp.models.mlp import MLPModel
+        m = MLPModel(state_dim=6, action_dim=2, delta_dim=3)
+        obs = torch.randn(4, 6)
+        act = torch.randn(4, 2)
+        delta, ms = m.step(obs, act)
+        assert delta.shape == (4, 3)
+        assert ms is None
+
+    def test_gru_delta_dim_3(self):
+        from lwp.models.gru import GRUModel
+        m = GRUModel(state_dim=6, action_dim=2, delta_dim=3)
+        obs = torch.randn(4, 6)
+        act = torch.randn(4, 2)
+        delta, ms = m.step(obs, act)
+        assert delta.shape == (4, 3)
+        assert ms is not None
+
+    def test_rssm_delta_dim_3(self):
+        from lwp.models.rssm import RSSMModel
+        m = RSSMModel(state_dim=6, action_dim=2, delta_dim=3)
+        obs = torch.randn(4, 6)
+        act = torch.randn(4, 2)
+        delta, ms = m.step(obs, act)
+        assert delta.shape == (4, 3)
+
+    def test_factory_builds_force3_mlp(self):
+        from lwp.models.factory import build_model
+        from lwp.utils.config import RunConfig
+        cfg = RunConfig(arch="mlp", state_dim=6, action_dim=2, delta_dim=3,
+                        data_path="dummy")
+        m = build_model(cfg)
+        obs = torch.randn(2, 6)
+        act = torch.randn(2, 2)
+        delta, _ = m.step(obs, act)
+        assert delta.shape == (2, 3)
+
+    def test_default_delta_dim_equals_state_dim(self):
+        """Backward compat: delta_dim defaults to state_dim."""
+        from lwp.utils.config import RunConfig
+        cfg = RunConfig(arch="mlp", state_dim=6, action_dim=2, data_path="dummy")
+        assert cfg.delta_dim == 6

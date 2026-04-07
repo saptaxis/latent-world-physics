@@ -25,10 +25,13 @@ class MLPModel(WorldModel):
         hidden_dims: list[int] = None,
         activation: str = "relu",
         dropout: float = 0.0,
+        delta_dim: int = None,
     ):
         super().__init__()
         if hidden_dims is None:
             hidden_dims = [256, 256]
+        if delta_dim is None:
+            delta_dim = state_dim
         act_fn = {"relu": nn.ReLU, "tanh": nn.Tanh}[activation]
         layers = []
         in_dim = state_dim + action_dim
@@ -38,7 +41,7 @@ class MLPModel(WorldModel):
             if dropout > 0:
                 layers.append(nn.Dropout(dropout))
             in_dim = h
-        layers.append(nn.Linear(in_dim, state_dim))
+        layers.append(nn.Linear(in_dim, delta_dim))
         self.net = nn.Sequential(*layers)
 
     def step(self, obs, action, model_state=None):

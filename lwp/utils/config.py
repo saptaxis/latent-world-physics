@@ -44,6 +44,7 @@ class RunConfig:
     # Environment
     state_dim: int = 8
     action_dim: int = 2
+    delta_dim: int | None = None  # Output dim. Defaults to state_dim if None.
 
     # Training hyperparams
     lr: float = 1e-3
@@ -60,6 +61,10 @@ class RunConfig:
     suffix: str = ""
 
     def __post_init__(self):
+        # Default delta_dim to state_dim if not specified
+        if self.delta_dim is None:
+            self.delta_dim = self.state_dim
+
         # Normalize data_path: single string → list of one
         if isinstance(self.data_path, str):
             if not self.data_path:
