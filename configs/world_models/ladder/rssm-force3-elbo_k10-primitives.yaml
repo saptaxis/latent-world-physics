@@ -8,7 +8,7 @@ arch_params:
 prediction: delta
 training_mode: elbo
 rollout_k: 10
-seq_len: 50
+seq_len: 20
 suffix: force3
 data_mix: primitives
 data_path: /media/hdd1/physics-priors-latent-space/lunar-lander-data/world_model_data/primitives-v1
@@ -20,11 +20,11 @@ kl_weight: 1.0
 subsample: 5
 action_dim: 2
 lr: 0.001
-batch_size: 64
+batch_size: 32
 epochs: 200
 val_fraction: 0.1
 val_every: 500
-patience: 15
+patience: 50
 ckpt_every: 5000
 plot_every: 10000
 grad_norm_every: 200
