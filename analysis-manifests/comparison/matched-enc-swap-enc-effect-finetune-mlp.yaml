@@ -10,9 +10,9 @@ comparisons:
     configs:
       frozen_enc:
         seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/gym-default/matched-encoder/encoder-swap
-        seeds: [42, 123, 456, 789, 1024]
+        seeds: [42, 123, 456, 789, 2048]
         trajectory_subdir: frozen_enc+finetune_mlp/trajectories
       finetune_enc:
         seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/gym-default/matched-encoder/encoder-swap
-        seeds: [42, 123, 456, 789, 1024]
+        seeds: [42, 123, 456, 789, 2048]
         trajectory_subdir: finetune_enc+finetune_mlp/trajectories
