@@ -9,6 +9,7 @@ arch_params:
 prediction: delta
 training_mode: single_step
 rollout_k: 1
+suffix: force3
 data_mix: policy
 data_path: /media/hdd1/physics-priors-latent-space/lunar-lander-data/world_model_data/gym-default
 state_dim: 6

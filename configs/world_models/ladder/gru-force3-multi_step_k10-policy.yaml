@@ -11,6 +11,7 @@ prediction: delta
 training_mode: multi_step
 rollout_k: 10
 seq_len: 50
+suffix: force3
 data_mix: policy
 data_path: /media/hdd1/physics-priors-latent-space/lunar-lander-data/world_model_data/gym-default
 state_dim: 6
