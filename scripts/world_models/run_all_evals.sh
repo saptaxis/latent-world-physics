@@ -157,6 +157,13 @@ SS_RUNS=(
     gru-delta-multi_step_k10-primitives
     rssm-delta-elbo_k10-policy--v3
     rssm-delta-elbo_k10-primitives
+    # E2-25: 3D force-target runs
+    mlp-delta-single_step_k1-policy--force3
+    mlp-delta-single_step_k1-primitives--force3
+    gru-delta-multi_step_k10-policy--force3
+    gru-delta-multi_step_k10-primitives--force3
+    rssm-delta-elbo_k10-policy--force3
+    rssm-delta-elbo_k10-primitives--force3
 )
 
 # Track background PIDs
