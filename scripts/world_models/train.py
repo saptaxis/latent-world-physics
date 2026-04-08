@@ -243,6 +243,7 @@ def main():
                 val_loader=val_loader,
                 norm_stats=norm_stats,
                 every_n_steps=config.rollout_every,
+                subsample=getattr(config, 'subsample', 1),
             ))
             callbacks.append(HiddenStateHealthCallback(
                 dataset=val_ds,
@@ -254,6 +255,7 @@ def main():
                 norm_stats=norm_stats,
                 every_n_steps=config.rollout_every,
                 n_rollouts=config.rollout_n_rollouts,
+                subsample=getattr(config, 'subsample', 1),
             ))
         callbacks.append(PlotExportCallback(
             tb_dir=tb_dir,

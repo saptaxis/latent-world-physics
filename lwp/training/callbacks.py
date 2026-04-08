@@ -19,6 +19,7 @@ from torch.optim import Optimizer
 
 from lwp.data.normalization import NormStats, normalize, denormalize
 from lwp.evaluation.metrics.core import per_dim_mse, rollout_error_metrics
+from lwp.training.integration import hybrid_state_update, FORCE_TARGET_INDICES
 from lwp.training.loop import validate
 from lwp.utils.checkpoint import save_checkpoint
 from lwp.utils.plotting import export_plots
@@ -303,11 +304,13 @@ class PerTimestepLossCallback(TrainCallback):
 
     def __init__(self, val_loader, norm_stats: NormStats,
                  every_n_steps: int = 500,
-                 positions: list[int] | None = None):
+                 positions: list[int] | None = None,
+                 subsample: int = 1):
         self.val_loader = val_loader
         self.norm_stats = norm_stats
         self.every_n_steps = every_n_steps
         self.positions = positions or [0, 4, 9, 24, 49]
+        self.subsample = subsample
 
     def on_step(self, ctx):
         if ctx.global_step == 0 or ctx.global_step % self.every_n_steps != 0:
@@ -331,9 +334,12 @@ class PerTimestepLossCallback(TrainCallback):
                     s_n = normalize(s, ns.state_mean, ns.state_std)
                     delta_n, model_state = ctx.model.step(s_n, action_seq[:, t], model_state)
                     delta_raw = denormalize(delta_n, ns.delta_mean, ns.delta_std)
-                    s = s + delta_raw
+                    s = hybrid_state_update(s, delta_raw, subsample=self.subsample)
 
+                    # Compare predicted force deltas against true force deltas
                     true_delta = state_seq[:, t + 1] - state_seq[:, t]
+                    if delta_raw.shape[-1] < true_delta.shape[-1]:
+                        true_delta = true_delta[:, FORCE_TARGET_INDICES]
                     sq_err = (delta_raw - true_delta).pow(2).mean(dim=-1)
                     step_errors.append(sq_err.mean().item())
 
@@ -455,9 +461,11 @@ class WarmupRolloutCallback(TrainCallback):
     def __init__(self, dataset, norm_stats: NormStats,
                  warmup_steps: int = 10,
                  horizons: list[int] | None = None,
-                 every_n_steps: int = 2000, n_rollouts: int = 10):
+                 every_n_steps: int = 2000, n_rollouts: int = 10,
+                 subsample: int = 1):
         self.dataset = dataset
         self.norm_stats = norm_stats
+        self.subsample = subsample
         self.warmup_steps = warmup_steps
         self.horizons = horizons or [1, 5, 10, 20]
         self.every_n_steps = every_n_steps
@@ -506,7 +514,7 @@ class WarmupRolloutCallback(TrainCallback):
                     s_n = normalize(s, ns.state_mean, ns.state_std)
                     delta_n, model_state = model.step(s_n, actions[act_idx].unsqueeze(0), model_state)
                     delta_raw = denormalize(delta_n, ns.delta_mean, ns.delta_std)
-                    s = s + delta_raw
+                    s = hybrid_state_update(s, delta_raw, subsample=self.subsample)
 
                     h = t + 1
                     if h in step_errors:
