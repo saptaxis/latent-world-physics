@@ -24,7 +24,7 @@ batch_size: 64
 epochs: 200
 val_fraction: 0.1
 val_every: 500
-patience: 15
+patience: 50
 ckpt_every: 5000
 plot_every: 10000
 grad_norm_every: 200
