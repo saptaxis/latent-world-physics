@@ -375,24 +375,28 @@ def main():
         )
     print(f"Train: {len(train_ds)} samples, Val: {len(val_ds)} samples")
 
-    # num_workers MUST be 0 for both modes:
-    # - Prepared mode: all frames in RAM (~19 GB), forking duplicates them.
+    # num_workers guard:
+    # - .npz prepared mode: all frames in RAM (~19 GB), forking duplicates them.
     # - Raw mode: each worker forks its own LRU cache. 64 cached episodes ×
     #   ~144 MB/episode = ~9 GB per worker. 4 workers = 36+ GB in caches.
-    # With data on HDD, disk I/O is the bottleneck anyway — multiple workers
-    # don't help and just eat RAM.
-    if args.num_workers > 0:
+    # - mmap'd .npy directory mode: fork shares mmap pages read-only, no
+    #   duplication. Workers help parallelize HDD random I/O. Safe to use > 0.
+    is_mmap_mode = (
+        args.prepared_dataset is not None
+        and Path(args.prepared_dataset).is_dir()
+    )
+    if args.num_workers > 0 and not is_mmap_mode:
         print(f"WARNING: num_workers={args.num_workers} can cause OOM. "
               f"Each worker caches episodes independently (~9 GB/worker for raw mode, "
-              f"~19 GB/worker for prepared mode). Using num_workers=0 instead.")
+              f"~19 GB/worker for prepared .npz mode). Using num_workers=0 instead.")
         args.num_workers = 0
     train_loader = DataLoader(
         train_ds, batch_size=args.batch_size, shuffle=True,
-        num_workers=0, pin_memory=True,
+        num_workers=args.num_workers, pin_memory=True,
     )
     val_loader = DataLoader(
         val_ds, batch_size=args.batch_size, shuffle=False,
-        num_workers=0, pin_memory=True,
+        num_workers=args.num_workers, pin_memory=True,
     )
 
     # --- Model ---

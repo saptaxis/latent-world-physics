@@ -1,0 +1,13 @@
+# Encoder pre-training data: E1 labeled agent (s42) with RGB frames, easy profile.
+# 2500 episodes. Labeled agent trained on easy profile (78% landing rate).
+# Provides landing trajectories with different strategy (anticipatory) than blind agent.
+
+source_type: labeled_agent
+checkpoint_dir: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/full-variation/labeled-ppo-easy-128-lowent/s42
+n_episodes: 2500
+seed: 0
+deterministic: true
+save_frames: true
+
+physics_sampling:
+  profile: easy

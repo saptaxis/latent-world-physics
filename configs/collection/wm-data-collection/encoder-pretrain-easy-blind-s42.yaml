@@ -1,0 +1,13 @@
+# Encoder pre-training data: E1 blind agent (s42) with RGB frames, easy profile.
+# 2500 episodes. Blind agent trained on easy profile (89% landing rate).
+# Provides high-quality landing trajectories under varied physics.
+
+source_type: blind_agent
+checkpoint_dir: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/full-variation/blind-ppo-easy-128-lowent/s42
+n_episodes: 2500
+seed: 0
+deterministic: true
+save_frames: true
+
+physics_sampling:
+  profile: easy

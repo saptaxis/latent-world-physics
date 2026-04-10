@@ -1,0 +1,10 @@
+# Encoder pre-training data: random policy with RGB frames, easy profile.
+# 2500 episodes with domain-randomized physics (easy profile).
+
+source_type: random
+n_episodes: 2500
+seed: 0
+save_frames: true
+
+physics_sampling:
+  profile: easy

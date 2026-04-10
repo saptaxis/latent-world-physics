@@ -1,0 +1,21 @@
+# Batch: encoder pre-training data for easy-profile domain randomization.
+# 10K episodes total (2.5K × 4 sources), all with RGB frames.
+#
+# Dataset composition:
+#   2.5K - random policy (diverse tumbling/angle coverage)
+#   2.5K - heuristic PD controller (structured descent trajectories)
+#   2.5K - E1 blind agent s42 (high-quality landings, reactive strategy)
+#   2.5K - E1 labeled agent s42 (landing trajectories, anticipatory strategy)
+#
+# Scale to 20K (5K per source) if encoder velocity R² < 0.8.
+
+output_base: /media/hdd1/physics-priors-latent-space/lunar-lander-data/encoder-pretrain/easy
+
+physics_sampling:
+  profile: easy
+
+collections:
+  - config: encoder-pretrain-easy-random.yaml
+  - config: encoder-pretrain-easy-heuristic.yaml
+  - config: encoder-pretrain-easy-blind-s42.yaml
+  - config: encoder-pretrain-easy-labeled-s42.yaml

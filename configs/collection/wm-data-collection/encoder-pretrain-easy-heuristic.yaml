@@ -1,0 +1,12 @@
+# Encoder pre-training data: heuristic PD controller with RGB frames, easy profile.
+# 2500 episodes with domain-randomized physics (easy profile).
+# Provides structured descent trajectories complementing random policy's tumbling coverage.
+
+source_type: heuristic
+n_episodes: 2500
+seed: 0
+deterministic: true
+save_frames: true
+
+physics_sampling:
+  profile: easy
