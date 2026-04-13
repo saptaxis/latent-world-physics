@@ -9,6 +9,7 @@ Available backbones:
         (preserves spatial detail better than NatureCNN's 8x8 first layer).
         Proven on Procgen, NetHack, and similar pixel-based RL tasks.
 """
+import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
 import torch as th
@@ -209,3 +210,168 @@ class ImpalaCombinedExtractor(BaseFeaturesExtractor):
         for key, extractor in self.extractors.items():
             encoded.append(extractor(observations[key]))
         return th.cat(encoded, dim=1)
+
+
+class ImpalaBranchCombinedExtractor(BaseFeaturesExtractor):
+    """CombinedExtractor with a dedicated physics branch MLP.
+
+    Solves the dimensional mismatch problem in visual-labeled experiments:
+    when 7 physics params are raw-concatenated to 256 CNN features, physics
+    is only 2.7% of the input and easily ignored by the policy MLP. This
+    extractor gives the physics vector a dedicated projection branch
+    (normalize → Linear → ReLU) before concatenation, increasing its
+    representational footprint to ~11% (32D / 288D) by default.
+
+    Architecture:
+        Image (4, 128, 128) → ImpalaCNN → 256D ──────────────────┐
+                                                                  ├─ concat → 288D
+        Physics (7,) → normalize → Linear(7, 32) → ReLU → 32D ──┘
+
+    Normalization uses registered buffers (mean, std) computed from the
+    training profile's physics parameter distribution. Buffers are not
+    learned — they checkpoint cleanly, move with .to(device), and don't
+    receive gradients. When stats are not provided, identity normalization
+    (mean=0, std=1) is used as a fallback — this is a pass-through that
+    exists for testing and debugging. In production, train_rl.py always
+    computes and provides stats from the training profile. The boolean
+    has_physics_norm flag records which mode was used.
+
+    The CNN sub-extractor lives at self.extractors["image"], with identical
+    state_dict keys to standalone ImpalaCNN and ImpalaCombinedExtractor.
+    This means:
+    - Pre-trained encoder weights load via extractors["image"].load_state_dict()
+    - Encoder freezing freezes only the CNN, not the physics branch
+    - The existing _find_cnn() logic in lwp/rl/training.py works unchanged
+
+    The physics branch lives at self.physics_branch (NOT in self.extractors)
+    to keep it architecturally separate from the CNN. This ensures:
+    - Encoder weight loading doesn't touch the branch
+    - Encoder freezing doesn't freeze the branch
+    - The branch is always randomly initialized and trained with the MLP
+
+    Args:
+        observation_space: Dict space (e.g. {"image": Box, "physics": Box}).
+        cnn_output_dim: ImpalaCNN output dimension (default 256).
+        physics_branch_dim: Physics branch output dimension (default 32).
+            Controls the representational footprint of physics in the
+            concatenated features. 32 → ~11% of 288D total.
+        physics_mean: Per-dimension mean for physics normalization, shape (n_physics,).
+            Computed from the training profile (e.g., 10K samples from SamplingProfile).
+            Registered as a buffer. Must be provided together with physics_std, or
+            both omitted (falls back to identity: mean=0, std=1).
+        physics_std: Per-dimension std for physics normalization, shape (n_physics,).
+            Registered as a buffer. Clamped to min 1e-6 to avoid division by zero
+            (e.g., wind_power=0 fixed in easy profile → std=0). Must be provided
+            together with physics_mean, or both omitted.
+        normalized_image: If True, skip image dtype/bounds checks.
+        channels: ImpalaCNN channel widths (default [16, 32, 32]).
+        pool_size: ImpalaCNN adaptive pool spatial size (default 4).
+    """
+
+    def __init__(
+        self,
+        observation_space: spaces.Dict,
+        cnn_output_dim: int = 256,
+        physics_branch_dim: int = 32,
+        physics_mean: np.ndarray | None = None,
+        physics_std: np.ndarray | None = None,
+        normalized_image: bool = False,
+        channels: list[int] | None = None,
+        pool_size: int = 4,
+    ) -> None:
+        # BaseFeaturesExtractor requires features_dim upfront.
+        # We compute it below and update _features_dim manually.
+        super().__init__(observation_space, features_dim=1)
+
+        # --- Validate observation space ---
+        # Require explicit "image" and "physics" keys. Don't discover by
+        # exclusion — that's brittle if the Dict ever gains other keys.
+        assert "image" in observation_space.spaces, (
+            "ImpalaBranchCombinedExtractor requires an 'image' key in the "
+            f"Dict observation space. Got keys: {list(observation_space.spaces.keys())}"
+        )
+        assert "physics" in observation_space.spaces, (
+            "ImpalaBranchCombinedExtractor requires a 'physics' key in the "
+            f"Dict observation space. Got keys: {list(observation_space.spaces.keys())}"
+        )
+
+        # --- Image extractor (ImpalaCNN) ---
+        # Lives in self.extractors["image"] for compatibility with the
+        # existing weight-loading path: _find_cnn() in lwp/rl/training.py
+        # checks hasattr(fe, "extractors") and "image" in fe.extractors.
+        image_subspace = observation_space.spaces["image"]
+        self.extractors = nn.ModuleDict({
+            "image": ImpalaCNN(
+                image_subspace,
+                features_dim=cnn_output_dim,
+                normalized_image=normalized_image,
+                channels=channels,
+                pool_size=pool_size,
+            ),
+        })
+
+        # --- Physics branch ---
+        # Separate from self.extractors so encoder weight loading and
+        # freezing don't touch it. Always randomly initialized, always
+        # trainable (even when the CNN is frozen).
+        physics_subspace = observation_space.spaces["physics"]
+        physics_input_dim = get_flattened_obs_dim(physics_subspace)
+        self.physics_branch = nn.Sequential(
+            nn.Linear(physics_input_dim, physics_branch_dim),
+            nn.ReLU(),
+        )
+
+        self._features_dim = cnn_output_dim + physics_branch_dim
+
+        # --- Normalization buffers ---
+        # Always register as real tensors (not None) so state_dict
+        # roundtrips work cleanly. When stats are not provided, use
+        # identity normalization (mean=0, std=1) which passes through
+        # unchanged. A boolean flag records whether real stats were given.
+        both_provided = physics_mean is not None and physics_std is not None
+        neither_provided = physics_mean is None and physics_std is None
+        assert both_provided or neither_provided, (
+            "physics_mean and physics_std must be both provided or both None. "
+            f"Got physics_mean={'set' if physics_mean is not None else 'None'}, "
+            f"physics_std={'set' if physics_std is not None else 'None'}."
+        )
+        self.has_physics_norm = both_provided
+        if both_provided:
+            self.register_buffer(
+                "physics_mean",
+                th.tensor(physics_mean, dtype=th.float32),
+            )
+            self.register_buffer(
+                "physics_std",
+                th.tensor(physics_std, dtype=th.float32),
+            )
+        else:
+            # Identity normalization: (x - 0) / 1 = x
+            self.register_buffer(
+                "physics_mean",
+                th.zeros(physics_input_dim, dtype=th.float32),
+            )
+            self.register_buffer(
+                "physics_std",
+                th.ones(physics_input_dim, dtype=th.float32),
+            )
+
+    def _normalize_physics(self, physics: th.Tensor) -> th.Tensor:
+        """Normalize physics input using registered mean/std buffers.
+
+        Always applies (physics - mean) / std.clamp(min=1e-6). When no
+        stats were provided at construction, buffers are identity
+        (mean=0, std=1) so this is a no-op. The clamp handles fixed
+        physics params (e.g., wind_power=0 in easy profile → std=0).
+        """
+        return (physics - self.physics_mean) / self.physics_std.clamp(min=1e-6)
+
+    def forward(self, observations: dict[str, th.Tensor]) -> th.Tensor:
+        # Image → CNN
+        image_features = self.extractors["image"](observations["image"])
+
+        # Physics → normalize → branch MLP
+        physics = self._normalize_physics(observations["physics"])
+        physics_features = self.physics_branch(physics)
+
+        return th.cat([image_features, physics_features], dim=1)
