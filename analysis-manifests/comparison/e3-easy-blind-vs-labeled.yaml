@@ -1,0 +1,64 @@
+# E3 easy profile: blind vs labeled (raw + branch) × frozen vs fine-tune.
+# Tests the parametric trap through pixels: does physics info help or hurt?
+# N=1 (s42 only) — preliminary comparison.
+experiment: e3-easy-blind-vs-labeled
+description: "Visual agents on easy profile: blind vs labeled with raw-concat and branch fusion, frozen and fine-tuned"
+output_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/analysis/cross-config/e3-easy-blind-vs-labeled
+
+comparisons:
+  # === FROZEN: blind vs labeled-raw vs labeled-branch ===
+  frozen-blind-vs-labeled:
+    condition: frozen-encoder
+    profile: easy
+    configs:
+      blind-frozen:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/easy/matched-encoder/frozen-lowlr
+        seeds: [42]
+      labeled-raw-frozen:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/easy/matched-encoder/labeled-raw-frozen-lowlr
+        seeds: [42]
+      labeled-branch-frozen:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/easy/matched-encoder/labeled-branch-frozen-lowlr
+        seeds: [42]
+
+  # === FINE-TUNE 5e-5: blind (collapsed) vs labeled-raw vs labeled-branch ===
+  finetune-blind-vs-labeled:
+    condition: finetune-5e-5
+    profile: easy
+    configs:
+      blind-finetune:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/easy/matched-encoder/finetune-lowlr
+        seeds: [42]
+      labeled-raw-finetune:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/easy/matched-encoder/labeled-raw-finetune-lowlr
+        seeds: [42]
+      labeled-branch-finetune:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/easy/matched-encoder/labeled-branch-finetune-lowlr
+        seeds: [42]
+
+  # === BLIND: frozen vs fine-tune comparison ===
+  blind-frozen-vs-finetune:
+    condition: blind-encoder-mode
+    profile: easy
+    configs:
+      blind-frozen:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/easy/matched-encoder/frozen-lowlr
+        seeds: [42]
+      blind-finetune-5e5:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/easy/matched-encoder/finetune-lowlr
+        seeds: [42]
+      blind-finetune-1e5:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/easy/matched-encoder/finetune-1e5
+        seeds: [42]
+
+  # === BRANCH: frozen vs fine-tune ===
+  branch-frozen-vs-finetune:
+    condition: branch-encoder-mode
+    profile: easy
+    configs:
+      branch-frozen:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/easy/matched-encoder/labeled-branch-frozen-lowlr
+        seeds: [42]
+      branch-finetune:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/easy/matched-encoder/labeled-branch-finetune-lowlr
+        seeds: [42]
