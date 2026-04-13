@@ -382,7 +382,13 @@ def _run_pipeline_for_agent(
         n_stack = train_config.get("n_stack", 4) if is_visual else 0
         frame_size = train_config.get("frame_size", 84)
 
-        print(f"  Config: {variant} / {algo.upper()}")
+        lr = train_config.get("learning_rate", "?")
+        frozen = "frozen" if train_config.get("freeze_encoder") else "finetune"
+        branch_dim = train_config.get("physics_branch_dim")
+        extras = f" | encoder={frozen} | LR={lr}"
+        if branch_dim:
+            extras += f" | branch={branch_dim}"
+        print(f"  Config: {variant} / {algo.upper()}{extras}")
     else:
         # Try to load config for summary table, but don't fail if missing.
         try:
@@ -612,8 +618,11 @@ def main():
     all_summaries = []
     for agent_dir in agent_dirs:
         agent_name = os.path.basename(agent_dir)
+        # Include parent dir for context (e.g., "frozen-lowlr/s42" instead of just "s42")
+        parent_name = os.path.basename(os.path.dirname(agent_dir))
+        display_name = f"{parent_name}/{agent_name}" if parent_name != agent_name else agent_name
         print(f"\n{'='*60}")
-        print(f"Agent: {agent_name}")
+        print(f"Agent: {display_name}")
         print(f"{'='*60}")
 
         # In batch mode with --output-dir, use per-agent subdirs to avoid overwrites.
