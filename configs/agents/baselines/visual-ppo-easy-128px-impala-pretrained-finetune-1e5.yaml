@@ -1,0 +1,30 @@
+# Pre-trained encoder (easy profile, 6D kinematic): FINE-TUNE + 1e-5 LR.
+# Lower LR than finetune-lowlr (5e-5) to reduce encoder co-adaptation
+# instability under varied physics. 5e-5 collapsed (85% → 15%).
+variant: visual
+algo: ppo
+profile: easy
+total_steps: 10_000_000
+n_stack: 4
+frame_size: 128
+cnn_backbone: impala
+video_freq: 500_000
+early_stop_landed_pct: 95.0
+early_stop_patience: 5
+n_envs: 8
+
+# --- PPO hyperparams ---
+learning_rate: 1.0e-5
+n_steps: 128
+batch_size: 256
+n_epochs: 4
+gamma: 0.99
+gae_lambda: 0.95
+clip_range: 0.1
+ent_coef: 0.01
+
+net_arch: [128, 128]
+
+# --- Pre-trained encoder ---
+encoder_weights: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/encoder-pretrain/easy/6d/s42/best_encoder.pt
+freeze_encoder: false
