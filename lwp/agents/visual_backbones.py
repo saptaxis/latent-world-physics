@@ -227,6 +227,12 @@ class ImpalaBranchCombinedExtractor(BaseFeaturesExtractor):
                                                                   ├─ concat → 288D
         Physics (7,) → normalize → Linear(7, 32) → ReLU → 32D ──┘
 
+    VecFrameStack stacks the physics vector along with image frames
+    (e.g., 4 frames × 7 physics = 28D), but physics params are constant
+    within an episode. This extractor slices the stacked physics back to
+    the original n_physics dims (last frame's copy) before normalizing
+    and projecting. The n_physics attribute controls the slice width.
+
     Normalization uses registered buffers (mean, std) computed from the
     training profile's physics parameter distribution. Buffers are not
     learned — they checkpoint cleanly, move with .to(device), and don't
@@ -263,6 +269,10 @@ class ImpalaBranchCombinedExtractor(BaseFeaturesExtractor):
             Registered as a buffer. Clamped to min 1e-6 to avoid division by zero
             (e.g., wind_power=0 fixed in easy profile → std=0). Must be provided
             together with physics_mean, or both omitted.
+        n_physics: Number of true physics dimensions before frame stacking
+            (default 7). VecFrameStack repeats the physics vector n_stack
+            times (e.g., 4 × 7 = 28D). The extractor slices to the last
+            n_physics dims in forward() to undo the stacking.
         normalized_image: If True, skip image dtype/bounds checks.
         channels: ImpalaCNN channel widths (default [16, 32, 32]).
         pool_size: ImpalaCNN adaptive pool spatial size (default 4).
@@ -275,6 +285,7 @@ class ImpalaBranchCombinedExtractor(BaseFeaturesExtractor):
         physics_branch_dim: int = 32,
         physics_mean: np.ndarray | None = None,
         physics_std: np.ndarray | None = None,
+        n_physics: int = 7,
         normalized_image: bool = False,
         channels: list[int] | None = None,
         pool_size: int = 4,
@@ -314,10 +325,14 @@ class ImpalaBranchCombinedExtractor(BaseFeaturesExtractor):
         # Separate from self.extractors so encoder weight loading and
         # freezing don't touch it. Always randomly initialized, always
         # trainable (even when the CNN is frozen).
-        physics_subspace = observation_space.spaces["physics"]
-        physics_input_dim = get_flattened_obs_dim(physics_subspace)
+        #
+        # Uses n_physics (default 7) as input dim, NOT the stacked obs dim.
+        # VecFrameStack repeats physics n_stack times (e.g., 4×7=28D), but
+        # physics params are constant within an episode. We slice to the
+        # last n_physics dims in forward() to undo the stacking.
+        self.n_physics = n_physics
         self.physics_branch = nn.Sequential(
-            nn.Linear(physics_input_dim, physics_branch_dim),
+            nn.Linear(n_physics, physics_branch_dim),
             nn.ReLU(),
         )
 
@@ -349,11 +364,11 @@ class ImpalaBranchCombinedExtractor(BaseFeaturesExtractor):
             # Identity normalization: (x - 0) / 1 = x
             self.register_buffer(
                 "physics_mean",
-                th.zeros(physics_input_dim, dtype=th.float32),
+                th.zeros(n_physics, dtype=th.float32),
             )
             self.register_buffer(
                 "physics_std",
-                th.ones(physics_input_dim, dtype=th.float32),
+                th.ones(n_physics, dtype=th.float32),
             )
 
     def _normalize_physics(self, physics: th.Tensor) -> th.Tensor:
@@ -370,8 +385,12 @@ class ImpalaBranchCombinedExtractor(BaseFeaturesExtractor):
         # Image → CNN
         image_features = self.extractors["image"](observations["image"])
 
-        # Physics → normalize → branch MLP
-        physics = self._normalize_physics(observations["physics"])
+        # Physics → slice to undo frame stacking → normalize → branch MLP.
+        # VecFrameStack repeats physics n_stack times (e.g., 4×7=28D).
+        # Physics params are constant within an episode, so all copies are
+        # identical. Take the last n_physics dims (last frame's copy).
+        physics_raw = observations["physics"][:, -self.n_physics:]
+        physics = self._normalize_physics(physics_raw)
         physics_features = self.physics_branch(physics)
 
         return th.cat([image_features, physics_features], dim=1)

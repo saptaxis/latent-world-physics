@@ -1093,14 +1093,9 @@ def main():
                     for i, name in enumerate(LunarLanderPhysicsConfig.PARAM_NAMES):
                         print(f"  {name:25s}: mean={physics_mean[i]:8.3f}  std={physics_std[i]:6.3f}")
 
-                    # VecFrameStack repeats the physics vector n_stack times
-                    # (e.g., 7 physics × 4 stacks = 28D). Tile normalization
-                    # stats to match the stacked dimension.
-                    n_stack = config.get("n_stack", 0) or 1
-                    if n_stack > 1:
-                        physics_mean = np.tile(physics_mean, n_stack)
-                        physics_std = np.tile(physics_std, n_stack)
-
+                    # Stats stay at 7D (original physics dims). The extractor
+                    # slices the stacked 28D physics back to 7D in forward()
+                    # since physics params are identical across all frames.
                     from lwp.agents.visual_backbones import ImpalaBranchCombinedExtractor
                     fe_kwargs = {
                         "cnn_output_dim": config.get("cnn_features_dim") or 256,

@@ -165,6 +165,78 @@ class TestNormalizationBuffers:
         assert out.shape == (1, 288)
 
 
+class TestFrameStackSlicing:
+
+    def test_stacked_physics_uses_last_n_dims(self):
+        """With 28D stacked physics (4 frames × 7), extractor uses only
+        the last 7 dims and ignores the earlier copies.
+
+        Regression test: VecFrameStack repeats physics across frames.
+        Physics params are constant within an episode, so all 4 copies
+        are identical in practice. But to prove the extractor takes the
+        LAST 7 dims specifically, we feed distinct values in each copy
+        and verify the output matches a 7D-only input with the last
+        copy's values.
+        """
+        # 28D stacked obs space (simulates VecFrameStack with n_stack=4)
+        stacked_space = _make_dict_obs_space(n_physics=28)
+        # 7D unstacked obs space (what the extractor logically operates on)
+        unstacked_space = _make_dict_obs_space(n_physics=7)
+
+        ext_stacked = ImpalaBranchCombinedExtractor(
+            stacked_space, n_physics=7, normalized_image=True,
+        )
+        ext_unstacked = ImpalaBranchCombinedExtractor(
+            unstacked_space, n_physics=7, normalized_image=True,
+        )
+        ext_stacked.eval()
+        ext_unstacked.eval()
+
+        # Copy all weights so the two extractors are identical
+        ext_unstacked.extractors["image"].load_state_dict(
+            ext_stacked.extractors["image"].state_dict()
+        )
+        ext_unstacked.physics_branch.load_state_dict(
+            ext_stacked.physics_branch.state_dict()
+        )
+
+        # Build a 28D physics input with DISTINCT values per frame copy.
+        # Frame 0 (dims 0-6): all 1.0
+        # Frame 1 (dims 7-13): all 2.0
+        # Frame 2 (dims 14-20): all 3.0
+        # Frame 3 (dims 21-27): all 5.0  ← the last copy, should be used
+        stacked_physics = torch.cat([
+            torch.full((1, 7), 1.0),
+            torch.full((1, 7), 2.0),
+            torch.full((1, 7), 3.0),
+            torch.full((1, 7), 5.0),
+        ], dim=1)  # shape (1, 28)
+        assert stacked_physics.shape == (1, 28)
+
+        # 7D input with the last copy's values
+        unstacked_physics = torch.full((1, 7), 5.0)
+
+        img = torch.zeros(1, 4, 128, 128)
+        with torch.no_grad():
+            out_stacked = ext_stacked({"image": img, "physics": stacked_physics})
+            out_unstacked = ext_unstacked({"image": img, "physics": unstacked_physics})
+
+        # Should be identical — stacked extractor takes last 7 dims = 5.0
+        torch.testing.assert_close(out_stacked, out_unstacked)
+
+        # Also verify that changing earlier copies doesn't affect output
+        stacked_physics_alt = torch.cat([
+            torch.full((1, 7), 99.0),  # different frame 0
+            torch.full((1, 7), 88.0),  # different frame 1
+            torch.full((1, 7), 77.0),  # different frame 2
+            torch.full((1, 7), 5.0),   # same last copy
+        ], dim=1)
+        with torch.no_grad():
+            out_alt = ext_stacked({"image": img, "physics": stacked_physics_alt})
+
+        torch.testing.assert_close(out_stacked, out_alt)
+
+
 class TestWeightLoadingCompat:
 
     def test_cnn_state_dict_keys_match_standalone(self):
