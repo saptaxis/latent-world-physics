@@ -40,6 +40,7 @@ from pathlib import Path
 
 import glob
 import shutil
+import numpy as np
 
 from parametric_lunar_lander.wrappers import make_lunar_lander_env
 from lwp.agents.eval_utils import evaluate_agent
@@ -129,6 +130,7 @@ def save_training_config(checkpoint_dir, config, policy_kwargs, policy_class,
         "aux_kinematic": config.get("aux_kinematic", False),
         "aux_coef": config.get("aux_coef", 0.5),
         "encoder_weights": config.get("encoder_weights"),
+        "physics_branch_dim": config.get("physics_branch_dim"),
         "freeze_encoder": config.get("freeze_encoder", False),
         "policy_class": policy_class,
         "started_at": datetime.now().isoformat(timespec="seconds"),
@@ -1046,17 +1048,55 @@ def main():
         if config["variant"] == "visual-labeled":
             # MultiInputPolicy handles Dict obs {"image": ..., "physics": ...}.
             # CombinedExtractor processes each sub-space with its own extractor
-            # (CNN for images, Flatten for vectors) then concatenates.
+            # (CNN for images, branch MLP or Flatten for vectors) then concatenates.
             policy_class = "MultiInputPolicy"
             if cnn_backbone == "impala":
-                # ImpalaCombinedExtractor uses ImpalaCNN for images instead
-                # of SB3's default NatureCNN. Same state_dict keys so
-                # pre-trained encoder weights load into extractors["image"].
-                from lwp.agents.visual_backbones import ImpalaCombinedExtractor
-                fe_kwargs = {"cnn_output_dim": config.get("cnn_features_dim") or 256}
-                fe_kwargs.update(impala_kwargs)
-                policy_kwargs["features_extractor_class"] = ImpalaCombinedExtractor
-                policy_kwargs["features_extractor_kwargs"] = fe_kwargs
+                physics_branch_dim = config.get("physics_branch_dim")
+                if physics_branch_dim:
+                    # Branch fusion: physics gets a dedicated projection MLP.
+                    # The branch gives the 7D physics vector a real route into
+                    # the policy despite the 256:7 dimensional mismatch with
+                    # CNN features. See ImpalaBranchCombinedExtractor docstring.
+                    #
+                    # Compute normalization stats from the training profile:
+                    # sample 10K physics configs, compute per-dim mean/std.
+                    # This handles TWR rejection sampling correctly and works
+                    # across profiles without hardcoding.
+                    from parametric_lunar_lander.sampling_profiles import SamplingProfile
+                    profile_obj = SamplingProfile.load(config["profile"])
+                    # Seed the sampling for reproducibility across runs.
+                    # Uses a fixed seed (0) independent of the RL seed so
+                    # normalization stats are identical across all seeds.
+                    norm_rng = np.random.default_rng(seed=0)
+                    physics_samples = np.array(
+                        [profile_obj.sample(rng=norm_rng).as_array() for _ in range(10_000)]
+                    )
+                    physics_mean = physics_samples.mean(axis=0)
+                    physics_std = physics_samples.std(axis=0)
+                    print(f"Physics normalization stats (from {config['profile']} profile):")
+                    from parametric_lunar_lander.physics_config import LunarLanderPhysicsConfig
+                    for i, name in enumerate(LunarLanderPhysicsConfig.PARAM_NAMES):
+                        print(f"  {name:25s}: mean={physics_mean[i]:8.3f}  std={physics_std[i]:6.3f}")
+
+                    from lwp.agents.visual_backbones import ImpalaBranchCombinedExtractor
+                    fe_kwargs = {
+                        "cnn_output_dim": config.get("cnn_features_dim") or 256,
+                        "physics_branch_dim": physics_branch_dim,
+                        "physics_mean": physics_mean,
+                        "physics_std": physics_std,
+                    }
+                    fe_kwargs.update(impala_kwargs)
+                    policy_kwargs["features_extractor_class"] = ImpalaBranchCombinedExtractor
+                    policy_kwargs["features_extractor_kwargs"] = fe_kwargs
+                else:
+                    # Raw concat: physics passes through nn.Flatten unchanged.
+                    # This is the weak-fusion baseline (7D raw-concatenated
+                    # to 256D CNN features → 263D total, physics is 2.7%).
+                    from lwp.agents.visual_backbones import ImpalaCombinedExtractor
+                    fe_kwargs = {"cnn_output_dim": config.get("cnn_features_dim") or 256}
+                    fe_kwargs.update(impala_kwargs)
+                    policy_kwargs["features_extractor_class"] = ImpalaCombinedExtractor
+                    policy_kwargs["features_extractor_kwargs"] = fe_kwargs
             else:
                 # NatureCNN default via SB3's CombinedExtractor.
                 policy_kwargs["features_extractor_kwargs"] = {"cnn_output_dim": 512}
