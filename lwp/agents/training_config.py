@@ -114,6 +114,7 @@ TRAINING_DEFAULTS = {
     # --- Pre-trained encoder ---
     "encoder_weights": None,     # Path to pre-trained encoder .pt file (None = random init)
     "freeze_encoder": False,     # If True, freeze CNN params during RL training
+    "physics_branch_dim": None,  # Physics branch output dim (None = raw concat, 32 = branch MLP)
 
     # --- Network ---
     # None = use DEFAULT_POLICY_KWARGS from rl_common (3x256 pi+vf).

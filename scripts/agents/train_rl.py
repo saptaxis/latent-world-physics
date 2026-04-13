@@ -74,6 +74,24 @@ def _git_commit_hash():
         return "unknown"
 
 
+def _jsonable_value(v):
+    """Convert a value to a JSON-serializable form."""
+    if isinstance(v, type):
+        return v.__name__
+    if isinstance(v, np.ndarray):
+        return v.tolist()
+    if isinstance(v, dict):
+        return {k: _jsonable_value(val) for k, val in v.items()}
+    return v
+
+
+def _jsonable_policy_kwargs(policy_kwargs):
+    """Make policy_kwargs JSON-serializable for config.json."""
+    if not policy_kwargs:
+        return None
+    return {k: _jsonable_value(v) for k, v in policy_kwargs.items()}
+
+
 def save_training_config(checkpoint_dir, config, policy_kwargs, policy_class,
                          resumed_from=None):
     """Save resolved training config to config.json.
@@ -96,10 +114,7 @@ def save_training_config(checkpoint_dir, config, policy_kwargs, policy_class,
         "n_rays": config["n_rays"],
         "seed": config["seed"],
         "net_arch": config["net_arch"],
-        "policy_kwargs": {
-            k: (v.__name__ if isinstance(v, type) else v)
-            for k, v in (policy_kwargs or {}).items()
-        } or None,
+        "policy_kwargs": _jsonable_policy_kwargs(policy_kwargs),
         "checkpoint_freq": config["checkpoint_freq"],
         "eval_freq": config["eval_freq"],
         "video_freq": config["video_freq"],
@@ -1077,6 +1092,14 @@ def main():
                     from parametric_lunar_lander.physics_config import LunarLanderPhysicsConfig
                     for i, name in enumerate(LunarLanderPhysicsConfig.PARAM_NAMES):
                         print(f"  {name:25s}: mean={physics_mean[i]:8.3f}  std={physics_std[i]:6.3f}")
+
+                    # VecFrameStack repeats the physics vector n_stack times
+                    # (e.g., 7 physics × 4 stacks = 28D). Tile normalization
+                    # stats to match the stacked dimension.
+                    n_stack = config.get("n_stack", 0) or 1
+                    if n_stack > 1:
+                        physics_mean = np.tile(physics_mean, n_stack)
+                        physics_std = np.tile(physics_std, n_stack)
 
                     from lwp.agents.visual_backbones import ImpalaBranchCombinedExtractor
                     fe_kwargs = {
