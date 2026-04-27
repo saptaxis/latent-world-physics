@@ -287,6 +287,194 @@ class TestLabelCorruptionNoise:
         np.testing.assert_array_almost_equal(obs[8:15], original)
 
 
+class TestResolveCorruptionDims:
+    """Test the resolve_corruption_dims helper for subset specs."""
+
+    def test_none_returns_all_seven(self):
+        from lwp.agents.label_corruption import resolve_corruption_dims
+        assert resolve_corruption_dims(None) == [0, 1, 2, 3, 4, 5, 6]
+
+    def test_all_returns_all_seven(self):
+        from lwp.agents.label_corruption import resolve_corruption_dims
+        assert resolve_corruption_dims("all") == [0, 1, 2, 3, 4, 5, 6]
+
+    def test_body_returns_body_dims(self):
+        from lwp.agents.label_corruption import resolve_corruption_dims
+        # main_engine, side_engine, density, damping
+        assert resolve_corruption_dims("body") == [1, 2, 3, 4]
+
+    def test_world_returns_world_dims(self):
+        from lwp.agents.label_corruption import resolve_corruption_dims
+        # gravity, wind, turbulence
+        assert resolve_corruption_dims("world") == [0, 5, 6]
+
+    def test_body_world_partition_covers_all(self):
+        """Body and world partitions should be disjoint and union to all 7."""
+        from lwp.agents.label_corruption import resolve_corruption_dims
+        body = set(resolve_corruption_dims("body"))
+        world = set(resolve_corruption_dims("world"))
+        assert body.isdisjoint(world)
+        assert body | world == set(range(7))
+
+    def test_explicit_list_parses(self):
+        from lwp.agents.label_corruption import resolve_corruption_dims
+        assert resolve_corruption_dims("0,2,5") == [0, 2, 5]
+
+    def test_explicit_list_dedups_and_sorts(self):
+        from lwp.agents.label_corruption import resolve_corruption_dims
+        # Spec with whitespace; duplicates should error
+        with pytest.raises(ValueError, match="duplicates"):
+            resolve_corruption_dims("3,1,3")
+        assert resolve_corruption_dims("3, 1, 5") == [1, 3, 5]
+
+    def test_explicit_list_rejects_out_of_range(self):
+        from lwp.agents.label_corruption import resolve_corruption_dims
+        with pytest.raises(ValueError, match="out of range"):
+            resolve_corruption_dims("0,7")
+        with pytest.raises(ValueError, match="out of range"):
+            resolve_corruption_dims("-1,0")
+
+    def test_explicit_list_rejects_garbage(self):
+        from lwp.agents.label_corruption import resolve_corruption_dims
+        with pytest.raises(ValueError, match="not a recognized preset"):
+            resolve_corruption_dims("foo")
+
+    def test_explicit_list_rejects_empty(self):
+        from lwp.agents.label_corruption import resolve_corruption_dims
+        with pytest.raises(ValueError, match="empty"):
+            resolve_corruption_dims(",")
+
+
+class TestLabelCorruptionDimSubset:
+    """Test corrupting only a subset of physics dims (body / world / explicit)."""
+
+    BODY_REL = (1, 2, 3, 4)
+    WORLD_REL = (0, 5, 6)
+    PHYSICS = [-10.0, 13.0, 0.6, 5.0, 2.0, 15.0, 2.0]
+
+    def _abs(self, rel_indices):
+        return [8 + r for r in rel_indices]
+
+    def test_zero_body_only_leaves_world_intact(self):
+        from lwp.agents.label_corruption import LabelCorruptionWrapper
+        env = LabelCorruptionWrapper(
+            FakeEnv(physics_values=self.PHYSICS),
+            corruption_type="zero",
+            dims=list(self.BODY_REL),
+        )
+        obs, _ = env.reset()
+        # Body dims (rel 1-4 → abs 9-12) zeroed
+        for ai in self._abs(self.BODY_REL):
+            assert obs[ai] == 0.0
+        # World dims (rel 0,5,6 → abs 8,13,14) preserved
+        for ri, ai in zip(self.WORLD_REL, self._abs(self.WORLD_REL)):
+            np.testing.assert_array_almost_equal(obs[ai], self.PHYSICS[ri])
+        # Kinematic untouched
+        np.testing.assert_array_equal(obs[:8], np.arange(8, dtype=np.float32))
+
+    def test_zero_world_only_leaves_body_intact(self):
+        from lwp.agents.label_corruption import LabelCorruptionWrapper
+        env = LabelCorruptionWrapper(
+            FakeEnv(physics_values=self.PHYSICS),
+            corruption_type="zero",
+            dims=list(self.WORLD_REL),
+        )
+        obs, _ = env.reset()
+        for ai in self._abs(self.WORLD_REL):
+            assert obs[ai] == 0.0
+        for ri, ai in zip(self.BODY_REL, self._abs(self.BODY_REL)):
+            np.testing.assert_array_almost_equal(obs[ai], self.PHYSICS[ri])
+
+    def test_default_dims_none_corrupts_all_seven(self):
+        """Backwards compatibility: dims=None corrupts all 7."""
+        from lwp.agents.label_corruption import LabelCorruptionWrapper
+        env = LabelCorruptionWrapper(
+            FakeEnv(physics_values=self.PHYSICS), corruption_type="zero",
+        )
+        obs, _ = env.reset()
+        np.testing.assert_array_equal(obs[8:15], np.zeros(7))
+
+    def test_shuffle_body_only_keeps_world_unchanged(self):
+        from lwp.agents.label_corruption import LabelCorruptionWrapper
+        # Use distinct values so we can detect a real permutation
+        physics = [-10.0, 13.0, 0.6, 5.0, 2.0, 15.0, 2.5]
+        env = LabelCorruptionWrapper(
+            FakeEnv(physics_values=physics),
+            corruption_type="shuffle",
+            seed=42,
+            dims=list(self.BODY_REL),
+        )
+        obs, _ = env.reset()
+        # World dims unchanged
+        np.testing.assert_array_almost_equal(obs[8], physics[0])
+        np.testing.assert_array_almost_equal(obs[13], physics[5])
+        np.testing.assert_array_almost_equal(obs[14], physics[6])
+        # Body slot multiset matches original body multiset
+        body_obs = sorted(float(obs[ai]) for ai in self._abs(self.BODY_REL))
+        body_orig = sorted(physics[r] for r in self.BODY_REL)
+        np.testing.assert_array_almost_equal(body_obs, body_orig)
+
+    def test_mean_subset_only_replaces_selected(self):
+        from lwp.agents.label_corruption import LabelCorruptionWrapper
+        means = np.array([-8.0, 15.0, 0.85, 6.25, 2.5, 15.0, 2.5], dtype=np.float32)
+        env = LabelCorruptionWrapper(
+            FakeEnv(physics_values=self.PHYSICS),
+            corruption_type="mean",
+            training_means=means,
+            dims=list(self.BODY_REL),
+        )
+        obs, _ = env.reset()
+        # Body dims replaced with their per-dim means
+        for ri, ai in zip(self.BODY_REL, self._abs(self.BODY_REL)):
+            np.testing.assert_array_almost_equal(obs[ai], means[ri])
+        # World dims unchanged
+        for ri, ai in zip(self.WORLD_REL, self._abs(self.WORLD_REL)):
+            np.testing.assert_array_almost_equal(obs[ai], self.PHYSICS[ri])
+
+    def test_noise_subset_only_perturbs_selected(self):
+        from lwp.agents.label_corruption import LabelCorruptionWrapper
+        env = LabelCorruptionWrapper(
+            FakeEnv(physics_values=self.PHYSICS),
+            corruption_type="noise",
+            sigma=0.5,
+            seed=42,
+            dims=list(self.BODY_REL),
+        )
+        obs, _ = env.reset()
+        # World dims must be exactly preserved (no noise added)
+        for ri, ai in zip(self.WORLD_REL, self._abs(self.WORLD_REL)):
+            np.testing.assert_array_almost_equal(obs[ai], self.PHYSICS[ri])
+        # At least one body dim should differ from original
+        body_changed = any(
+            not np.isclose(obs[ai], self.PHYSICS[ri], atol=1e-6)
+            for ri, ai in zip(self.BODY_REL, self._abs(self.BODY_REL))
+        )
+        assert body_changed
+
+    def test_explicit_dims_list_works(self):
+        from lwp.agents.label_corruption import LabelCorruptionWrapper
+        env = LabelCorruptionWrapper(
+            FakeEnv(physics_values=self.PHYSICS),
+            corruption_type="zero",
+            dims=[0, 6],  # gravity + turbulence only
+        )
+        obs, _ = env.reset()
+        assert obs[8] == 0.0     # gravity zeroed
+        assert obs[14] == 0.0    # turbulence zeroed
+        # Everything else preserved
+        for ri in (1, 2, 3, 4, 5):
+            np.testing.assert_array_almost_equal(obs[8 + ri], self.PHYSICS[ri])
+
+    def test_invalid_dims_raise(self):
+        from lwp.agents.label_corruption import LabelCorruptionWrapper
+        with pytest.raises(ValueError, match="out of range"):
+            LabelCorruptionWrapper(FakeEnv(), corruption_type="zero", dims=[7])
+        with pytest.raises(ValueError, match="out of range"):
+            LabelCorruptionWrapper(FakeEnv(), corruption_type="zero", dims=[-1])
+        with pytest.raises(ValueError, match="non-empty"):
+            LabelCorruptionWrapper(FakeEnv(), corruption_type="zero", dims=[])
+
+
 class TestComputeTrainingMeans:
     """Test training-set mean computation from trajectory files."""
 

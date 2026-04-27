@@ -261,8 +261,37 @@ def main():
                         help="Directory of .npz files to compute training means from. "
                              "Required for --corruption mean. Defaults to the agent's "
                              "own trajectories/ dir if it exists.")
+    parser.add_argument("--corruption-subset", type=str, default="all",
+                        choices=["all", "body", "world"],
+                        help="Which physics dims to corrupt. 'all' (default) "
+                             "covers all 7. 'body' = main/side engine, density, "
+                             "damping (4 dims). 'world' = gravity, wind, turbulence "
+                             "(3 dims). Mutually exclusive with --corruption-dims. "
+                             "Non-'all' values append a suffix to the trajectory subdir "
+                             "(e.g. trajectories-zero-body).")
+    parser.add_argument("--corruption-dims", type=str, default=None,
+                        help="Explicit comma-list of physics-dim indices [0, 7) to "
+                             "corrupt, e.g. '0,2,5'. Indices match "
+                             "LunarLanderPhysicsConfig.PARAM_NAMES order. Overrides "
+                             "--corruption-subset; the subdir suffix becomes "
+                             "'-d<comma-joined>' (e.g. trajectories-zero-d0_2_5).")
 
     args = parser.parse_args()
+
+    # Resolve corruption dim subset (None when no --corruption is set, or when
+    # --corruption-subset=all and no --corruption-dims). Non-default selections
+    # produce a tag suffix on the trajectory subdir so they don't collide with
+    # the all-dims baselines.
+    corruption_dims = None
+    corruption_dims_suffix = ""
+    if args.corruption:
+        from lwp.agents.label_corruption import resolve_corruption_dims
+        if args.corruption_dims is not None:
+            corruption_dims = resolve_corruption_dims(args.corruption_dims)
+            corruption_dims_suffix = "-d" + "_".join(str(d) for d in corruption_dims)
+        elif args.corruption_subset != "all":
+            corruption_dims = resolve_corruption_dims(args.corruption_subset)
+            corruption_dims_suffix = f"-{args.corruption_subset}"
 
     if args.checkpoint_dir:
         agent_dirs = [args.checkpoint_dir]
@@ -359,11 +388,14 @@ def main():
                     corruption_type=args.corruption,
                     corruption_sigma=args.corruption_sigma,
                     training_means=training_means,
+                    corruption_dims=corruption_dims,
                 ))
                 for prof_name, batch_env_fn in eval_batches
             ]
+            dims_msg = f" dims={corruption_dims}" if corruption_dims is not None else ""
             print(f"  Corruption: {args.corruption}" +
-                  (f" (sigma={args.corruption_sigma})" if args.corruption == "noise" else ""))
+                  (f" (sigma={args.corruption_sigma})" if args.corruption == "noise" else "") +
+                  dims_msg)
 
         # Collect for each profile.
         # In batch mode with --output-dir, use per-agent subdirs to avoid overwrites.
@@ -373,11 +405,12 @@ def main():
             output_base = args.output_dir or os.path.join(agent_dir, "trajectories")
 
         # Corruption runs save to a separate subdir to avoid overwriting baselines.
-        # e.g. trajectories-zero/, trajectories-noise-s0.1/
+        # e.g. trajectories-zero/, trajectories-noise-s0.1/, trajectories-zero-body/.
         if args.corruption:
             corruption_tag = args.corruption
             if args.corruption == "noise":
                 corruption_tag = f"noise-s{args.corruption_sigma}"
+            corruption_tag = f"{corruption_tag}{corruption_dims_suffix}"
             if output_base.endswith("trajectories"):
                 output_base = output_base[:-len("trajectories")] + f"trajectories-{corruption_tag}"
             else:
@@ -441,6 +474,8 @@ def main():
             "deterministic": args.deterministic,
             "corruption": args.corruption,
             "corruption_sigma": args.corruption_sigma if args.corruption == "noise" else None,
+            "corruption_dims": corruption_dims,
+            "corruption_subset": args.corruption_subset if args.corruption else None,
         }
         meta_path = os.path.join(output_base, "collection_meta.json")
         os.makedirs(os.path.dirname(meta_path), exist_ok=True)

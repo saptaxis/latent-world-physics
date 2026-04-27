@@ -342,6 +342,7 @@ def _run_pipeline_for_agent(
     corruption=None,
     corruption_sigma=0.1,
     corruption_means_dir=None,
+    corruption_dims=None,
     save_frames=False,
 ):
     """Run the full pipeline (collect + metrics + analysis) for a single agent.
@@ -443,11 +444,16 @@ def _run_pipeline_for_agent(
                     corruption_type=corruption,
                     corruption_sigma=corruption_sigma,
                     training_means=training_means,
+                    corruption_dims=corruption_dims,
                 ))
                 for prof_name, batch_env_fn in eval_batches
             ]
+            dims_msg = ""
+            if corruption_dims is not None:
+                dims_msg = f" dims={list(corruption_dims)}"
             print(f"  Corruption: {corruption}" +
-                  (f" (sigma={corruption_sigma})" if corruption == "noise" else ""))
+                  (f" (sigma={corruption_sigma})" if corruption == "noise" else "") +
+                  dims_msg)
 
         for prof_name, batch_env_fn in eval_batches:
             if len(eval_batches) > 1:
@@ -589,6 +595,20 @@ def main():
     parser.add_argument("--corruption-means-dir", type=str, default=None,
                         help="Directory of .npz files to compute training means from. "
                              "Required for --corruption mean.")
+    parser.add_argument("--corruption-subset", type=str, default="all",
+                        choices=["all", "body", "world"],
+                        help="Which physics dims to corrupt. 'all' (default) "
+                             "covers all 7. 'body' = main/side engine, density, "
+                             "damping (4 dims). 'world' = gravity, wind, turbulence "
+                             "(3 dims). Mutually exclusive with --corruption-dims. "
+                             "Non-'all' values append a suffix to the trajectory subdir "
+                             "(e.g. trajectories-zero-body).")
+    parser.add_argument("--corruption-dims", type=str, default=None,
+                        help="Explicit comma-list of physics-dim indices [0, 7) to "
+                             "corrupt, e.g. '0,2,5'. Indices match "
+                             "LunarLanderPhysicsConfig.PARAM_NAMES order. Overrides "
+                             "--corruption-subset; the subdir suffix becomes "
+                             "'-d<comma-joined>' (e.g. trajectories-zero-d0_2_5).")
     parser.add_argument("--save-frames", action="store_true",
                         help="Capture RGB frames at each timestep and include in .npz files. "
                              "Increases file size from ~20KB to ~1-2MB per episode.")
@@ -604,6 +624,22 @@ def main():
                         help="Bins for landed%% vs TWR plot (default: 5)")
 
     args = parser.parse_args()
+
+    # Resolve corruption dim subset (None when no --corruption is set, or when
+    # --corruption-subset=all and no --corruption-dims). Non-default selections
+    # produce a tag suffix on the trajectory subdir so they don't collide with
+    # the all-dims baselines.
+    corruption_dims = None
+    corruption_dims_suffix = ""
+    if args.corruption:
+        from lwp.agents.label_corruption import resolve_corruption_dims
+        if args.corruption_dims is not None:
+            corruption_dims = resolve_corruption_dims(args.corruption_dims)
+            corruption_dims_suffix = "-d" + "_".join(str(d) for d in corruption_dims)
+        elif args.corruption_subset != "all":
+            corruption_dims = resolve_corruption_dims(args.corruption_subset)
+            corruption_dims_suffix = f"-{args.corruption_subset}"
+        # else: default — corrupt all 7 dims, no suffix (back-compat).
 
     if args.checkpoint_dir:
         agent_dirs = [args.checkpoint_dir]
@@ -633,10 +669,13 @@ def main():
             output_base = args.output_dir or os.path.join(agent_dir, args.trajectory_subdir)
 
         # Corruption runs save to a separate subdir (e.g. trajectories-zero/).
+        # Subset runs add a suffix (e.g. trajectories-zero-body) so different
+        # subset choices don't collide with each other or with the all-dims run.
         if args.corruption:
             corruption_tag = args.corruption
             if args.corruption == "noise":
                 corruption_tag = f"noise-s{args.corruption_sigma}"
+            corruption_tag = f"{corruption_tag}{corruption_dims_suffix}"
             if output_base.endswith(args.trajectory_subdir):
                 output_base = output_base[:-len(args.trajectory_subdir)] + f"{args.trajectory_subdir}-{corruption_tag}"
             else:
@@ -673,6 +712,7 @@ def main():
             corruption=args.corruption,
             corruption_sigma=args.corruption_sigma,
             corruption_means_dir=args.corruption_means_dir,
+            corruption_dims=corruption_dims,
             save_frames=args.save_frames,
         )
 

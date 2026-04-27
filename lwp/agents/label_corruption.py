@@ -49,6 +49,61 @@ PHYSICS_START = 8
 PHYSICS_END = 15  # exclusive — dims 8,9,10,11,12,13,14
 N_PHYSICS_DIMS = PHYSICS_END - PHYSICS_START  # 7
 
+# Named subsets of the 7 physics dims, indexed within the physics slice
+# (i.e., 0..6 maps to absolute obs indices 8..14). Order matches
+# LunarLanderPhysicsConfig.PARAM_NAMES:
+#   0 gravity              (world)
+#   1 main_engine_power    (body)
+#   2 side_engine_power    (body)
+#   3 lander_density       (body)
+#   4 angular_damping      (body)
+#   5 wind_power           (world)
+#   6 turbulence_power     (world)
+BODY_DIM_INDICES: tuple[int, ...] = (1, 2, 3, 4)
+WORLD_DIM_INDICES: tuple[int, ...] = (0, 5, 6)
+ALL_DIM_INDICES: tuple[int, ...] = tuple(range(N_PHYSICS_DIMS))
+
+SUBSET_PRESETS: dict[str, tuple[int, ...]] = {
+    "all": ALL_DIM_INDICES,
+    "body": BODY_DIM_INDICES,
+    "world": WORLD_DIM_INDICES,
+}
+
+
+def resolve_corruption_dims(spec: str | None) -> list[int]:
+    """Parse a subset spec into a sorted list of physics-dim indices.
+
+    Accepts:
+      - None or "all": all 7 dims (default — backwards compatible).
+      - "body": the 4 body params (main/side engine, density, damping).
+      - "world": the 3 world params (gravity, wind, turbulence).
+      - Comma-separated list of integers in [0, 7), e.g. "0,2,5".
+
+    Returns a sorted list of unique ints. Raises ValueError on bad input.
+    """
+    if spec is None or spec == "all":
+        return list(ALL_DIM_INDICES)
+    if spec in SUBSET_PRESETS:
+        return list(SUBSET_PRESETS[spec])
+    # Comma-separated list path.
+    try:
+        parts = [int(p.strip()) for p in spec.split(",") if p.strip() != ""]
+    except ValueError as e:
+        raise ValueError(
+            f"corruption dims spec '{spec}' is not a recognized preset "
+            f"({sorted(SUBSET_PRESETS)}) or comma-list of ints."
+        ) from e
+    if not parts:
+        raise ValueError(f"corruption dims spec '{spec}' is empty.")
+    for d in parts:
+        if not (0 <= d < N_PHYSICS_DIMS):
+            raise ValueError(
+                f"corruption dim {d} is out of range [0, {N_PHYSICS_DIMS})."
+            )
+    if len(set(parts)) != len(parts):
+        raise ValueError(f"corruption dims spec '{spec}' contains duplicates.")
+    return sorted(set(parts))
+
 
 class LabelCorruptionWrapper(gymnasium.ObservationWrapper):
     """Corrupt physics observation dimensions to test label dependency.
@@ -70,6 +125,12 @@ class LabelCorruptionWrapper(gymnasium.ObservationWrapper):
             in PARAM_NAMES order. Required for "mean" mode.
         sigma: Noise standard deviation as a fraction of each param's
             range. Only used for "noise" mode. Default 0.1 = 10% of range.
+        dims: Optional list of physics-dim indices (in [0, 7)) to corrupt.
+            None (default) corrupts all 7 dims — backwards compatible.
+            Use named subsets via resolve_corruption_dims("body" / "world")
+            or pass an explicit list (e.g. [1, 2, 3, 4] for body only).
+            Untouched dims pass through unchanged. For "shuffle" mode the
+            permutation is restricted to the selected dims.
     """
 
     VALID_TYPES = ("zero", "shuffle", "mean", "noise")
@@ -81,6 +142,7 @@ class LabelCorruptionWrapper(gymnasium.ObservationWrapper):
         seed: int = 0,
         training_means: np.ndarray | None = None,
         sigma: float = 0.1,
+        dims: list[int] | tuple[int, ...] | None = None,
     ):
         super().__init__(env)
 
@@ -104,15 +166,35 @@ class LabelCorruptionWrapper(gymnasium.ObservationWrapper):
                 "(7 floats, one per physics param in PARAM_NAMES order)."
             )
 
+        # Resolve and validate the dim subset. None = all 7 dims.
+        if dims is None:
+            dim_indices = list(ALL_DIM_INDICES)
+        else:
+            dim_indices = sorted(set(int(d) for d in dims))
+            if not dim_indices:
+                raise ValueError("dims must be non-empty (or None for all 7 dims).")
+            for d in dim_indices:
+                if not (0 <= d < N_PHYSICS_DIMS):
+                    raise ValueError(
+                        f"dim {d} is out of range [0, {N_PHYSICS_DIMS})."
+                    )
+
         self.corruption_type = corruption_type
         self._rng = np.random.default_rng(seed)
         self._training_means = training_means
         self._sigma = sigma
 
+        # Relative indices within the 7-dim physics slice and absolute
+        # indices into the full observation vector. Cached as np.ndarray
+        # for fast fancy indexing in observation().
+        self._dim_indices: np.ndarray = np.array(dim_indices, dtype=np.intp)
+        self._abs_indices: np.ndarray = self._dim_indices + PHYSICS_START
+
         # Per-episode shuffle permutation — regenerated on each reset().
         # Stays fixed across all steps within one episode so the agent
-        # sees a consistent (but wrong) set of physics labels.
-        self._shuffle_perm = np.arange(N_PHYSICS_DIMS)
+        # sees a consistent (but wrong) set of physics labels. Identity
+        # default (no shuffle yet) — populated on reset() for shuffle mode.
+        self._shuffle_perm = np.arange(len(self._dim_indices), dtype=np.intp)
 
         # Param ranges for noise scaling. Imported here to avoid circular
         # imports at module level.
@@ -134,53 +216,54 @@ class LabelCorruptionWrapper(gymnasium.ObservationWrapper):
         """Reset env and regenerate per-episode corruption state."""
         obs, info = self.env.reset(**kwargs)
 
-        # Generate new shuffle permutation for this episode.
-        # Other corruption types don't need per-episode state.
+        # Generate new shuffle permutation for this episode, restricted
+        # to the selected dim subset. A length-1 subset trivially permutes
+        # to itself and is effectively a no-op for shuffle.
         if self.corruption_type == "shuffle":
-            self._shuffle_perm = self._rng.permutation(N_PHYSICS_DIMS)
+            self._shuffle_perm = self._rng.permutation(len(self._dim_indices))
 
         return self.observation(obs), info
 
-    def observation(self, obs):
-        """Apply corruption to physics dims (indices 8-14).
+    def observation(self, observation):
+        """Apply corruption to the selected physics dims.
 
         Returns a copy — never modifies the original observation array.
-        Kinematic dims (0-7) and any dims beyond 14 (rays, etc.) are
-        left untouched.
+        Dims outside ``self._abs_indices`` (kinematic, unselected physics,
+        rays, etc.) are left untouched.
         """
-        corrupted = obs.copy()
+        corrupted = observation.copy()
+        abs_idx = self._abs_indices
+        rel_idx = self._dim_indices
 
         if self.corruption_type == "zero":
-            # Zero-out: set all physics dims to 0.
+            # Zero-out: set selected physics dims to 0.
             # The simplest test: if the agent doesn't degrade, it never
             # looked at these dims. If it degrades, they're load-bearing.
-            corrupted[PHYSICS_START:PHYSICS_END] = 0.0
+            corrupted[abs_idx] = 0.0
 
         elif self.corruption_type == "shuffle":
-            # Shuffle: permute the 7 physics values using the per-episode
-            # permutation. Tests whether the agent cares about which dim
-            # is which, or just that there's some signal present.
-            physics = obs[PHYSICS_START:PHYSICS_END]
-            corrupted[PHYSICS_START:PHYSICS_END] = physics[self._shuffle_perm]
+            # Shuffle: permute physics values within the selected subset.
+            # Tests whether the agent cares about which dim is which (within
+            # this subset), or just that some signal is present.
+            subset_values = observation[abs_idx]
+            corrupted[abs_idx] = subset_values[self._shuffle_perm]
 
         elif self.corruption_type == "mean":
-            # Mean-replace: set to training-set mean for each dim.
-            # Tests whether per-episode variation in labels is informative.
-            # If performance holds, the agent only uses the mean-level signal
-            # (which is constant across episodes and thus uninformative).
-            corrupted[PHYSICS_START:PHYSICS_END] = self._training_means
+            # Mean-replace: set selected dims to their training-set mean.
+            # Tests whether per-episode variation in those labels is informative.
+            assert self._training_means is not None  # checked in __init__
+            corrupted[abs_idx] = self._training_means[rel_idx]
 
         elif self.corruption_type == "noise":
-            # Noise: add Gaussian noise scaled by sigma * param_range.
-            # sigma=0.1 means noise std is 10% of each param's full range.
-            # Clip to valid ranges to avoid impossible physics values.
-            physics = obs[PHYSICS_START:PHYSICS_END]
-            noise = self._rng.normal(
-                0, self._sigma * self._param_ranges,
-            ).astype(np.float32)
-            corrupted[PHYSICS_START:PHYSICS_END] = np.clip(
-                physics + noise, self._param_lows, self._param_highs,
-            )
+            # Noise: add Gaussian noise scaled by sigma * param_range to
+            # selected dims only. Clipped to each param's valid range so
+            # downstream code never sees impossible physics values.
+            subset_values = observation[abs_idx]
+            ranges = self._param_ranges[rel_idx]
+            lows = self._param_lows[rel_idx]
+            highs = self._param_highs[rel_idx]
+            noise = self._rng.normal(0, self._sigma * ranges).astype(np.float32)
+            corrupted[abs_idx] = np.clip(subset_values + noise, lows, highs)
 
         return corrupted
 

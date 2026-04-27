@@ -199,6 +199,7 @@ def wrap_env_fn_with_corruption(
     corruption_type: str,
     corruption_sigma: float = 0.1,
     training_means: np.ndarray | None = None,
+    corruption_dims: list[int] | tuple[int, ...] | None = None,
 ) -> Callable[[int], gymnasium.Env]:
     """Wrap an env factory to add label corruption.
 
@@ -215,6 +216,10 @@ def wrap_env_fn_with_corruption(
         corruption_type: "zero", "shuffle", "mean", or "noise".
         corruption_sigma: Noise std fraction for "noise" mode.
         training_means: 7-element array for "mean" mode.
+        corruption_dims: Optional subset of physics-dim indices [0, 7) to
+            corrupt. None corrupts all 7 dims (backwards compatible). See
+            ``lwp.agents.label_corruption.resolve_corruption_dims`` for
+            named subsets ("body", "world").
 
     Returns:
         New env factory (seed -> wrapped env with corruption).
@@ -229,6 +234,7 @@ def wrap_env_fn_with_corruption(
             seed=seed,
             training_means=training_means,
             sigma=corruption_sigma,
+            dims=corruption_dims,
         )
 
     return corrupted_env_fn
