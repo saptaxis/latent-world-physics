@@ -59,19 +59,47 @@ def load_encoder(encoder_path: str) -> StandaloneImpalaCNN:
         import io
         with zipfile.ZipFile(str(path), "r") as zf:
             with zf.open("policy.pth") as f:
-                # policy.pth contains the full policy state_dict
                 buf = io.BytesIO(f.read())
                 policy_state = torch.load(buf, map_location="cpu", weights_only=True)
-        # Filter to features_extractor keys and strip the prefix.
-        prefix = "features_extractor."
-        fe_state = {
-            k[len(prefix):]: v for k, v in policy_state.items()
-            if k.startswith(prefix)
-        }
-        if not fe_state:
-            raise ValueError(f"No features_extractor keys found in {path}")
+
+        # Two SB3 layouts put the ImpalaCNN at different prefixes:
+        #   single-input policy (blind):    features_extractor.<cnn-key>
+        #   MultiInputPolicy (raw, branch): features_extractor.extractors.image.<cnn-key>
+        # Both `ImpalaCombinedExtractor` and `ImpalaBranchCombinedExtractor`
+        # are documented (lwp/agents/visual_backbones.py) to keep the CNN at
+        # `extractors["image"]` with state_dict keys identical to the
+        # standalone CNN — see also `_find_cnn()` in lwp/rl/training.py.
+        # We pick the prefix whose stripped keys exactly match the target
+        # encoder's keys.
+        target_keys = set(encoder.state_dict().keys())
+        candidates = (
+            "features_extractor.extractors.image.",
+            "features_extractor.",
+        )
+        fe_state = None
+        chosen_prefix = None
+        for prefix in candidates:
+            stripped = {
+                k[len(prefix):]: v for k, v in policy_state.items()
+                if k.startswith(prefix)
+            }
+            if set(stripped.keys()) == target_keys:
+                fe_state = stripped
+                chosen_prefix = prefix
+                break
+        if fe_state is None:
+            top_prefixes = sorted({k.split(".")[0] for k in policy_state.keys()})
+            raise ValueError(
+                f"Could not locate ImpalaCNN weights in {path}. "
+                f"Tried prefixes {candidates}. Top-level keys in policy.pth: "
+                f"{top_prefixes}. Expected keys (sample): "
+                f"{sorted(target_keys)[:3]}..."
+            )
         encoder.load_state_dict(fe_state)
-        print(f"Extracted fine-tuned encoder from {path.name} ({len(fe_state)} params)")
+        print(
+            f"Extracted fine-tuned encoder from {path.name} "
+            f"(prefix={chosen_prefix!r}, {len(fe_state)} params)"
+        )
     else:
         raise ValueError(f"Unknown encoder format: {path.suffix} (expected .pt or .zip)")
 
