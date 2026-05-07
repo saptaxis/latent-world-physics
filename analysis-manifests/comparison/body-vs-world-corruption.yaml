@@ -1,0 +1,118 @@
+# Cross-config comparison manifest: body-vs-world label corruption (E1-T1a).
+#
+# Within-agent causal test of the body-uncertainty claim. For each of three
+# state-vector labeled training conditions, compares four eval regimes on
+# the same trained networks (no new training):
+#   - labeled              : baseline, no corruption          -> trajectories/
+#   - labeled-world-zeroed : zero only world dims (gravity,    -> trajectories-zero-world/
+#                            wind_power, turbulence_power)
+#   - labeled-body-zeroed  : zero only body dims               -> trajectories-zero-body/
+#                            (main/side engine_power, lander_density,
+#                            angular_damping)
+#   - labeled-zeroed       : zero all 7 dims (existing from    -> trajectories-zero/
+#                            label-corruption study; sanity:
+#                            should be ~ body+world combined)
+#
+# Asymmetric prediction:
+#   full-variation easy   : body-zero >> world-zero damage if body-uncertainty
+#                           is the load-bearing axis.
+#   physics-only easy     : body labels are constants in training -> body-zero
+#                           is a near-no-op; world-zero is the real intervention.
+#   vehicle-only easy     : world labels are constants -> world-zero ~ no-op;
+#                           body-zero is the flagship body-axis result.
+#
+# Workflow:
+#   1. Collect new corruption trajectories (script in vsr-tmp):
+#        bash ~/vsr-tmp/e1-t1/run_corruption_evals.sh
+#      Each invocation iterates 10 seeds, writes
+#      trajectories-zero-{body,world}/{episode_*.npz, metrics.csv,
+#      metrics_summary.txt, behavioral_analysis/}.
+#   2. Compare:
+#        python scripts/analysis/compare_configs.py \
+#            --manifest comparison/body-vs-world-corruption
+#
+# Related: label-corruption.yaml (the all-7 study), parametric-vs-behavioral.md
+# (the env-restriction body-vs-world result this experiment converts to a
+# within-agent test).
+
+experiment: body-vs-world-corruption
+description: "Within-agent body-vs-world label corruption (E1-T1a)."
+output_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/analysis/cross-config/body-vs-world-corruption
+
+comparisons:
+  # === FULL VARIATION, EASY ===
+  # The flagship condition. Body and world both vary in training -> agent had
+  # the chance to use both. If body-zero >> world-zero damage, the labeled
+  # controller is leaning specifically on body info, matching the
+  # vehicle-only-vs-physics-only behavioral split shown in the article.
+  full-variation-easy:
+    condition: full-variation
+    profile: easy
+    configs:
+      labeled:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/full-variation/labeled-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+      labeled-world-zeroed:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/full-variation/labeled-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+        trajectory_subdir: trajectories-zero-world
+      labeled-body-zeroed:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/full-variation/labeled-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+        trajectory_subdir: trajectories-zero-body
+      labeled-zeroed:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/full-variation/labeled-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+        trajectory_subdir: trajectories-zero
+
+  # === PHYSICS-ONLY, EASY ===
+  # World-only training (body fixed). Body labels are constants here -> the
+  # agent had no incentive to read them, so body-zero should be a near-no-op.
+  # World-zero is the real intervention; predicted to hurt landing rate
+  # because the agent built a parametric strategy around varying world
+  # parameters (cf. label-corruption.md noise-cliff result for this condition).
+  physics-only-easy:
+    condition: physics-only
+    profile: easy
+    configs:
+      labeled:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/physics-only/labeled-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+      labeled-world-zeroed:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/physics-only/labeled-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+        trajectory_subdir: trajectories-zero-world
+      labeled-body-zeroed:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/physics-only/labeled-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+        trajectory_subdir: trajectories-zero-body
+      labeled-zeroed:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/physics-only/labeled-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+        trajectory_subdir: trajectories-zero
+
+  # === VEHICLE-ONLY, EASY ===
+  # Body-only training (world fixed). World labels are constants -> world-zero
+  # should be a near-no-op. Body-zero is the flagship body-axis result; the
+  # article already shows blind autocorr collapses here (0.673 vs 0.928), so
+  # if the labeled agent's smoothness depends causally on body labels, it
+  # should drop sharply when those labels are zeroed.
+  vehicle-only-easy:
+    condition: vehicle-only
+    profile: easy
+    configs:
+      labeled:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/vehicle-only/labeled-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+      labeled-world-zeroed:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/vehicle-only/labeled-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+        trajectory_subdir: trajectories-zero-world
+      labeled-body-zeroed:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/vehicle-only/labeled-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+        trajectory_subdir: trajectories-zero-body
+      labeled-zeroed:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/vehicle-only/labeled-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+        trajectory_subdir: trajectories-zero
