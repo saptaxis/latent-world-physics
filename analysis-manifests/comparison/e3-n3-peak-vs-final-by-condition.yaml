@@ -1,0 +1,86 @@
+# P2: Peak vs final within each condition — instability / what's lost.
+# Compares behavioral metrics between peak and final checkpoints.
+# N=3 (s42, s123, s456). Easy profile, 200 eps, matched encoders.
+# Requires trajectories-peak symlinks in each run dir.
+experiment: e3-n3-peak-vs-final-by-condition
+description: "E3 easy N=3: peak vs final within each condition — what behavioral changes accompany instability?"
+output_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/analysis/cross-config/e3-n3-peak-vs-final-by-condition
+
+comparisons:
+  blind-frozen-peak-vs-final:
+    condition: blind-frozen
+    profile: easy
+    configs:
+      peak:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/easy/matched-encoder/frozen-lowlr
+        seeds: [42, 123, 456]
+        trajectory_subdir: trajectories-peak
+      final:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/easy/matched-encoder/frozen-lowlr
+        seeds: [42, 123, 456]
+        trajectory_subdir: trajectories
+
+  blind-ft-peak-vs-final:
+    condition: blind-ft
+    profile: easy
+    configs:
+      peak:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/easy/matched-encoder/finetune-1e5
+        seeds: [42, 123, 456]
+        trajectory_subdir: trajectories-peak
+      final:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/easy/matched-encoder/finetune-1e5
+        seeds: [42, 123, 456]
+        trajectory_subdir: trajectories
+
+  raw-frozen-peak-vs-final:
+    condition: raw-frozen
+    profile: easy
+    configs:
+      peak:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/easy/matched-encoder/labeled-raw-frozen-lowlr
+        seeds: [42, 123, 456]
+        trajectory_subdir: trajectories-peak
+      final:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/easy/matched-encoder/labeled-raw-frozen-lowlr
+        seeds: [42, 123, 456]
+        trajectory_subdir: trajectories
+
+  raw-ft-peak-vs-final:
+    condition: raw-ft
+    profile: easy
+    configs:
+      peak:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/easy/matched-encoder/labeled-raw-finetune-lowlr
+        seeds: [42, 123, 456]
+        trajectory_subdir: trajectories-peak
+      final:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/easy/matched-encoder/labeled-raw-finetune-lowlr
+        seeds: [42, 123, 456]
+        trajectory_subdir: trajectories
+
+  branch-frozen-peak-vs-final:
+    condition: branch-frozen
+    profile: easy
+    configs:
+      peak:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/easy/matched-encoder/labeled-branch-frozen-lowlr
+        seeds: [42, 123, 456]
+        trajectory_subdir: trajectories-peak
+      final:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/easy/matched-encoder/labeled-branch-frozen-lowlr
+        seeds: [42, 123, 456]
+        trajectory_subdir: trajectories
+
+  branch-ft-peak-vs-final:
+    condition: branch-ft
+    profile: easy
+    configs:
+      peak:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/easy/matched-encoder/labeled-branch-finetune-lowlr
+        seeds: [42, 123, 456]
+        trajectory_subdir: trajectories-peak
+      final:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/easy/matched-encoder/labeled-branch-finetune-lowlr
+        seeds: [42, 123, 456]
+        trajectory_subdir: trajectories

@@ -1,0 +1,37 @@
+# S1: All 6 conditions at peak checkpoint (best attained capability).
+# N=3 (s42, s123, s456). Easy profile, 200 eps, matched encoders.
+# Requires trajectories-peak symlink in each run dir (created after evals).
+# See e3-03-checkpoint-selection-and-comparison-Apr172026.md
+experiment: e3-n3-all-6-peak
+description: "E3 easy N=3: all 6 conditions at peak checkpoint — what can the policy learn?"
+output_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/analysis/cross-config/e3-n3-all-6-peak
+
+comparisons:
+  all-6-peak:
+    condition: all-conditions-peak
+    profile: easy
+    configs:
+      blind-frozen:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/easy/matched-encoder/frozen-lowlr
+        seeds: [42, 123, 456]
+        trajectory_subdir: trajectories-peak
+      blind-ft:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/easy/matched-encoder/finetune-1e5
+        seeds: [42, 123, 456]
+        trajectory_subdir: trajectories-peak
+      raw-frozen:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/easy/matched-encoder/labeled-raw-frozen-lowlr
+        seeds: [42, 123, 456]
+        trajectory_subdir: trajectories-peak
+      raw-ft:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/easy/matched-encoder/labeled-raw-finetune-lowlr
+        seeds: [42, 123, 456]
+        trajectory_subdir: trajectories-peak
+      branch-frozen:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/easy/matched-encoder/labeled-branch-frozen-lowlr
+        seeds: [42, 123, 456]
+        trajectory_subdir: trajectories-peak
+      branch-ft:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/easy/matched-encoder/labeled-branch-finetune-lowlr
+        seeds: [42, 123, 456]
+        trajectory_subdir: trajectories-peak

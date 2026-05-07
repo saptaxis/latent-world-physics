@@ -30,6 +30,7 @@ Usage:
 
 import argparse
 import glob
+import json
 import os
 import re
 import sys
@@ -298,6 +299,19 @@ def print_table(results):
               f"{result['peak_checkpoint']}")
 
 
+def save_result(result):
+    """Save checkpoint selection JSON to the run directory."""
+    run_dir = result["run_dir"]
+    out = {k: v for k, v in result.items() if k != "run_dir"}
+    # Convert tuples to lists for JSON
+    if "tail_steps" in out and isinstance(out["tail_steps"], tuple):
+        out["tail_steps"] = list(out["tail_steps"])
+    out_path = os.path.join(run_dir, "checkpoint_selection.json")
+    with open(out_path, "w") as f:
+        json.dump(out, f, indent=2)
+    return out_path
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Select evaluation checkpoints (peak + final) for RL runs."
@@ -317,6 +331,8 @@ def main():
                         help="Number of final evals for tail average (default: 10)")
     parser.add_argument("--table-only", action="store_true",
                         help="Only show summary table")
+    parser.add_argument("--save", action="store_true",
+                        help="Save checkpoint_selection.json to each run dir")
     args = parser.parse_args()
 
     kwargs = dict(
@@ -333,18 +349,27 @@ def main():
             print(f"No TB eval data in {args.run_dir}", file=sys.stderr)
             sys.exit(1)
         print_result(result)
+        if args.save:
+            path = save_result(result)
+            print(f"\n  Saved: {path}")
     else:
         runs = _find_runs(args.agents_dir)
         if not runs:
             print(f"No runs found under {args.agents_dir}", file=sys.stderr)
             sys.exit(1)
         results = []
+        saved = 0
         for condition, seed, path in runs:
             result = select_checkpoints(path, **kwargs)
             results.append((condition, seed, result))
             if not args.table_only and result:
                 print_result(result, condition, seed)
+            if args.save and result:
+                save_result(result)
+                saved += 1
         print_table(results)
+        if args.save:
+            print(f"\nSaved {saved} checkpoint_selection.json files.")
 
 
 if __name__ == "__main__":

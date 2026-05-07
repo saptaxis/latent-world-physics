@@ -1,0 +1,35 @@
+# All 6 conditions at final checkpoint, OOD on medium profile.
+# N=3 (s42, s123, s456). 100 eps, matched encoders.
+experiment: e3-n3-all-6-final-ood-medium
+description: "E3 easy-trained N=3: all 6 conditions at final, evaluated OOD on medium physics"
+output_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/analysis/cross-config/e3-n3-all-6-final-ood-medium
+
+comparisons:
+  all-6-final-ood-medium:
+    condition: all-conditions-final-ood
+    profile: medium
+    configs:
+      blind-frozen:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/easy/matched-encoder/frozen-lowlr
+        seeds: [42, 123, 456]
+        trajectory_subdir: trajectories-medium
+      blind-ft:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/easy/matched-encoder/finetune-1e5
+        seeds: [42, 123, 456]
+        trajectory_subdir: trajectories-medium
+      raw-frozen:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/easy/matched-encoder/labeled-raw-frozen-lowlr
+        seeds: [42, 123, 456]
+        trajectory_subdir: trajectories-medium
+      raw-ft:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/easy/matched-encoder/labeled-raw-finetune-lowlr
+        seeds: [42, 123, 456]
+        trajectory_subdir: trajectories-medium
+      branch-frozen:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/easy/matched-encoder/labeled-branch-frozen-lowlr
+        seeds: [42, 123, 456]
+        trajectory_subdir: trajectories-medium
+      branch-ft:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/easy/matched-encoder/labeled-branch-finetune-lowlr
+        seeds: [42, 123, 456]
+        trajectory_subdir: trajectories-medium

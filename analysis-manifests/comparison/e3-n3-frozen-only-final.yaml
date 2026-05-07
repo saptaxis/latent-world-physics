@@ -1,0 +1,23 @@
+# S2: Frozen-only conditions at final — fusion-strength effect without finetune confound.
+# N=3 (s42, s123, s456). Easy profile, 200 eps, matched encoders.
+experiment: e3-n3-frozen-only-final
+description: "E3 easy N=3: frozen-only (blind/raw/branch) at final — fusion strength effect"
+output_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/analysis/cross-config/e3-n3-frozen-only-final
+
+comparisons:
+  frozen-only-final:
+    condition: frozen-fusion-strength
+    profile: easy
+    configs:
+      blind-frozen:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/easy/matched-encoder/frozen-lowlr
+        seeds: [42, 123, 456]
+        trajectory_subdir: trajectories
+      raw-frozen:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/easy/matched-encoder/labeled-raw-frozen-lowlr
+        seeds: [42, 123, 456]
+        trajectory_subdir: trajectories
+      branch-frozen:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/easy/matched-encoder/labeled-branch-frozen-lowlr
+        seeds: [42, 123, 456]
+        trajectory_subdir: trajectories

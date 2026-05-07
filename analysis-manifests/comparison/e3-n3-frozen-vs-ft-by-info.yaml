@@ -1,0 +1,49 @@
+# P3-P5: Frozen vs finetune within each information condition.
+# N=3 (s42, s123, s456). Easy profile, 200 eps, matched encoders.
+# Paired by seed (same encoder). Tests fine-tuning effect per info condition.
+experiment: e3-n3-frozen-vs-ft-by-info
+description: "E3 easy N=3: frozen vs finetune within blind/raw/branch — fine-tuning effect"
+output_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/analysis/cross-config/e3-n3-frozen-vs-ft-by-info
+
+comparisons:
+  # P3: Blind — frozen vs finetune
+  blind-frozen-vs-ft:
+    condition: blind
+    profile: easy
+    configs:
+      blind-frozen:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/easy/matched-encoder/frozen-lowlr
+        seeds: [42, 123, 456]
+        trajectory_subdir: trajectories
+      blind-ft:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/easy/matched-encoder/finetune-1e5
+        seeds: [42, 123, 456]
+        trajectory_subdir: trajectories
+
+  # P4: Raw-labeled — frozen vs finetune
+  raw-frozen-vs-ft:
+    condition: raw-labeled
+    profile: easy
+    configs:
+      raw-frozen:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/easy/matched-encoder/labeled-raw-frozen-lowlr
+        seeds: [42, 123, 456]
+        trajectory_subdir: trajectories
+      raw-ft:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/easy/matched-encoder/labeled-raw-finetune-lowlr
+        seeds: [42, 123, 456]
+        trajectory_subdir: trajectories
+
+  # P5: Branch-labeled — frozen vs finetune
+  branch-frozen-vs-ft:
+    condition: branch-labeled
+    profile: easy
+    configs:
+      branch-frozen:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/easy/matched-encoder/labeled-branch-frozen-lowlr
+        seeds: [42, 123, 456]
+        trajectory_subdir: trajectories
+      branch-ft:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/easy/matched-encoder/labeled-branch-finetune-lowlr
+        seeds: [42, 123, 456]
+        trajectory_subdir: trajectories
