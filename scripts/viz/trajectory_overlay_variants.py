@@ -48,15 +48,22 @@ def load_episode(path):
     }
 
 
-def pick(traj_dir: Path, n: int, outcome="landed"):
-    out = []
-    for p in sorted(traj_dir.glob("episode_*.npz")):
+def pick(traj_dir: Path, n: int, outcome="landed", rng=None):
+    """Return up to n episodes matching `outcome`. If rng is provided
+    (a numpy.random.Generator), randomly samples n from all matching
+    episodes for reproducible-but-shuffled selection. Otherwise returns
+    the first n in sorted filename order (legacy behavior).
+    """
+    paths = sorted(traj_dir.glob("episode_*.npz"))
+    matches = []
+    for p in paths:
         ep = load_episode(p)
         if outcome is None or ep["outcome"] == outcome:
-            out.append(ep)
-            if len(out) >= n:
-                break
-    return out
+            matches.append(ep)
+    if rng is not None and len(matches) > n:
+        idx = rng.choice(len(matches), size=n, replace=False)
+        return [matches[int(i)] for i in idx]
+    return matches[:n]
 
 
 # Action discretization (continuous LunarLander):
@@ -335,6 +342,198 @@ def variant_D(blind_eps, labeled_eps, backdrop, out: Path, t_max: int,
     fig.savefig(out, bbox_inches="tight")
     print(f"saved: {out}")
     plt.close(fig)
+
+
+# ---- Variant BD: V_B top (paths + reversal dots) + V_D bottom (thrust strips) ----
+def variant_BD(blind_eps, labeled_eps, backdrop, out: Path, t_max: int,
+               stats=None, n_strips: int = 50, titles=None):
+    """Combined panel used in the article:
+       Top row: V_B-style reversal-dot overlay (faint grey paths +
+                yellow main-toggle dots + magenta lateral-change dots).
+       Bottom row: V_D per-episode thrust-action staircase strip plot.
+    """
+    fig = plt.figure(figsize=(14, 10), dpi=150, constrained_layout=True)
+    gs = fig.add_gridspec(2, 2, height_ratios=[2.5, 2])
+    MAIN_DOT = "#ffd400"   # yellow
+    LAT_DOT = "#e040fb"    # magenta
+
+    col_titles = titles if titles else ["Blind", "Labeled"]
+    for col, (eps, title) in enumerate([
+        (blind_eps, col_titles[0]),
+        (labeled_eps, col_titles[1]),
+    ]):
+        n_eps = len(eps)
+        if stats and title in stats:
+            s = stats[title]
+            land_str = f"   landed {s['landed']}/{s['total']} ({100*s['landed']/s['total']:.0f}%)"
+        else:
+            land_str = ""
+
+        # --- top: V_B reversal-dot overlay
+        ax_top = fig.add_subplot(gs[0, col])
+        ax_top.imshow(backdrop, extent=[0, VIEWPORT_W, VIEWPORT_H, 0])
+        m_x, m_y, l_x, l_y = [], [], [], []
+        for ep in eps:
+            pts = state_to_pixels(ep["states"])
+            if len(pts) < 2:
+                continue
+            segs = np.concatenate([pts[:-1, None, :], pts[1:, None, :]], axis=1)
+            ax_top.add_collection(LineCollection(segs, colors="#bbbbbb",
+                                                 linewidths=0.5, alpha=0.35))
+            m_rev = thrust_reversals(ep["actions"], "main")
+            l_rev = thrust_reversals(ep["actions"], "lateral")
+            for i in np.where(m_rev)[0]:
+                if i + 1 < len(pts):
+                    m_x.append(pts[i + 1, 0]); m_y.append(pts[i + 1, 1])
+            for i in np.where(l_rev)[0]:
+                if i + 1 < len(pts):
+                    l_x.append(pts[i + 1, 0]); l_y.append(pts[i + 1, 1])
+        ax_top.scatter(l_x, l_y, s=2.5, c=LAT_DOT, alpha=0.55,
+                       linewidths=0, zorder=9)
+        ax_top.scatter(m_x, m_y, s=2.5, c=MAIN_DOT, alpha=0.65,
+                       linewidths=0, zorder=10)
+        ax_top.set_xlim(0, VIEWPORT_W); ax_top.set_ylim(VIEWPORT_H, 0)
+        ax_top.set_xticks([]); ax_top.set_yticks([])
+        m_rate = np.mean([thrust_reversals(ep['actions'], 'main').sum()
+                          / max(len(ep['actions']), 1) for ep in eps])
+        l_rate = np.mean([thrust_reversals(ep['actions'], 'lateral').sum()
+                          / max(len(ep['actions']), 1) for ep in eps])
+        ax_top.set_title(
+            f"$\\bf{{{title}\\ agent}}$ (n={n_eps}){land_str}\n"
+            f"main reversals: {m_rate:.2f}/step   "
+            f"lateral reversals: {l_rate:.2f}/step",
+            fontsize=11, pad=10,
+        )
+
+        # --- bottom: V_D per-episode thrust strips
+        ax_bot = fig.add_subplot(gs[1, col])
+        sorted_eps = sorted(eps, key=lambda e: e["length"])
+        n_rows = len(sorted_eps)
+        img = np.full((n_rows, t_max), -1, dtype=int)
+        for r, ep in enumerate(sorted_eps):
+            cats = discretize_actions(ep["actions"])
+            img[r, :len(cats)] = cats
+        rgb = np.ones((*img.shape, 3), dtype=float)
+        for cat, hex_c in ACTION_COLORS.items():
+            mask = img == cat
+            rgb[mask] = np.array(plt.matplotlib.colors.to_rgb(hex_c))
+        ax_bot.imshow(rgb, aspect="auto", interpolation="nearest")
+        good_x, good_y, bad_x, bad_y = [], [], [], []
+        for r, ep in enumerate(sorted_eps):
+            x = ep["length"] + 8
+            if ep["outcome"] == "landed":
+                good_x.append(x); good_y.append(r)
+            else:
+                bad_x.append(x); bad_y.append(r)
+        ax_bot.scatter(good_x, good_y, marker=">", s=22, c="#2ecc71",
+                       linewidths=0, zorder=5)
+        ax_bot.scatter(bad_x, bad_y, marker=">", s=22, c="#e74c3c",
+                       linewidths=0, zorder=5)
+        ax_bot.set_xlim(0, t_max + 25)
+        ax_bot.set_xlabel("step")
+        ax_bot.set_ylabel("episode (sorted by length)")
+        ax_bot.set_title(f"per-step thrust action ({n_rows} episodes, "
+                         f"shortest -> longest; > green = landed, "
+                         f"> red = failed)", fontsize=10, pad=8)
+
+    # Two legends: top (reversal dots) and bottom (action colors)
+    rev_handles = [
+        plt.Line2D([0], [0], marker="o", linestyle="",
+                   markerfacecolor=MAIN_DOT, markeredgecolor=MAIN_DOT,
+                   markersize=9, label="main thrust on/off"),
+        plt.Line2D([0], [0], marker="o", linestyle="",
+                   markerfacecolor=LAT_DOT, markeredgecolor=LAT_DOT,
+                   markersize=9, label="lateral L/R/none change"),
+    ]
+    act_handles = [plt.Line2D([0], [0], marker="s", linestyle="",
+                              markerfacecolor=c, markeredgecolor=c,
+                              markersize=10, label=ACTION_LABELS[k])
+                   for k, c in ACTION_COLORS.items()]
+    fig.legend(handles=rev_handles + act_handles, loc="outside lower center",
+               ncol=8, frameon=False, fontsize=9)
+    fig.savefig(out, bbox_inches="tight")
+    print(f"saved: {out}")
+    plt.close(fig)
+
+
+def pick_seed_dirs(metrics_csv: Path, metric: str = "side_thrust_reversals",
+                   strategy: str = "median",
+                   blind_variant: str = "blind",
+                   labeled_variant: str = "labeled") -> dict:
+    """Pick one seed per (blind, labeled) variant from a cross-config
+    metrics_by_variant.csv. Returns {role: {variant, seed, metric_value,
+    traj_dir}}.
+
+    strategy:
+      "median"  -> seed whose per-seed mean is closest to the variant mean
+      "extreme" -> blind: argmax metric (most reactive)
+                   labeled: argmin metric (most smooth)
+    """
+    import pandas as pd
+    df = pd.read_csv(metrics_csv)
+    by_seed = (df.groupby(["variant", "seed"])[metric].mean()
+               .reset_index().rename(columns={metric: "mean"}))
+    out = {}
+    for role, variant in [("blind", blind_variant), ("labeled", labeled_variant)]:
+        sub = by_seed[by_seed["variant"] == variant].copy()
+        if sub.empty:
+            raise ValueError(f"no rows for variant={variant} in {metrics_csv}")
+        if strategy == "median":
+            target = sub["mean"].mean()
+            sub["dist"] = (sub["mean"] - target).abs()
+            chosen = sub.sort_values("dist").iloc[0]
+        elif strategy == "extreme":
+            if role == "blind":
+                chosen = sub.loc[sub["mean"].idxmax()]
+            else:
+                chosen = sub.loc[sub["mean"].idxmin()]
+        else:
+            raise ValueError(f"unknown strategy {strategy}")
+        sample = df[(df["variant"] == variant) & (df["seed"] == chosen["seed"])].iloc[0]
+        traj_dir = Path(sample["npz_path"]).parent
+        out[role] = {
+            "variant": variant,
+            "seed": int(chosen["seed"]),
+            "metric_value": float(chosen["mean"]),
+            "traj_dir": traj_dir,
+        }
+    return out
+
+
+def render_scenario_bd(tag, blind_dir: Path, labeled_dir: Path, rgb_path: Path,
+                       out_path: Path, n: int = 50, outcome_filter=None,
+                       seed: int = 0, titles=None):
+    """Single-call renderer for one V_BD figure. `seed` controls reproducible
+    random sampling of n episodes from each condition (default 0). `titles`,
+    if given, is a 2-list of column header strings used in the figure;
+    defaults to ["Blind", "Labeled"]."""
+    rng = np.random.default_rng(seed)
+    backdrop = load_episode(rgb_path)["rgb_frames"][-1]
+    blind = pick(blind_dir, n, outcome=outcome_filter, rng=rng)
+    labeled = pick(labeled_dir, n, outcome=outcome_filter, rng=rng)
+    if not blind:
+        blind = pick(blind_dir, n, outcome=None, rng=rng)
+    if not labeled:
+        labeled = pick(labeled_dir, n, outcome=None, rng=rng)
+    stats = {
+        "Blind": landing_stats(blind_dir),
+        "Labeled": landing_stats(labeled_dir),
+    }
+    t_max = max(max(ep["length"] for ep in blind),
+                max(ep["length"] for ep in labeled))
+    print(f"[{tag}] blind={blind_dir.parent.name}/{blind_dir.name}  "
+          f"labeled={labeled_dir.parent.name}/{labeled_dir.name}  "
+          f"n_blind={len(blind)}  n_labeled={len(labeled)}  t_max={t_max}")
+    # variant_BD's `stats` dict is keyed by column-title strings (default
+    # "Blind" / "Labeled"). When custom titles are provided, remap stats keys
+    # so the title block can find them.
+    if titles is not None and stats is not None:
+        stats = {titles[0]: stats.get("Blind", {}),
+                 titles[1]: stats.get("Labeled", {})}
+    variant_BD(blind, labeled, backdrop, out_path, t_max, stats=stats,
+               titles=titles)
+    return {"t_max": int(t_max), "stats": stats, "n_blind": len(blind),
+            "n_labeled": len(labeled)}
 
 
 def landing_stats(traj_dir: Path, n_pop=200):
