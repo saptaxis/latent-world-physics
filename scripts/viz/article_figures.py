@@ -92,6 +92,8 @@ METRIC_LABELS = {
     "thrust_autocorr_lag1": "Thrust autocorrelation (lag-1)",
     "side_thrust_autocorr_lag1": "Side-thrust autocorrelation (lag-1)",
     "side_thrust_reversals": "Side-thrust reversals (per episode)",
+    "side_thrust_reversals_rate": "Side-thrust reversals (per step)",
+    "side_thrust_reversals_per_step": "Side-thrust reversals (per step)",
     "thrust_duty_cycle": "Thrust duty cycle",
     "total_fuel": "Total fuel (per episode)",
     "frac_upright": "Fraction upright",
@@ -109,7 +111,7 @@ DEFAULT_OUT = Path(
     "/media/hdd1/physics-priors-latent-space/lunar-lander-networks/"
     "articles/01-what-do-agents-learn/figures"
 )
-DATE_TAG = "2026-05-13"
+DATE_TAG = "2026-05-14"
 
 # Existing overlay artifacts to wrap
 OVERLAY_VD_SRC = Path("/home/vsr/vsr-tmp/e1-overlay/easy-ID_vD.png")
@@ -252,27 +254,119 @@ def bar_with_seed_dots(
     """Bar plot with per-seed dots overlaid. summary has columns
     [variant, mean, se, n]; per_seed has [variant, seed, <metric>]."""
     variants = list(summary["variant"])
-    x = np.arange(len(variants))
+    # Pack bars closer together by compressing x spacing.
+    x = np.arange(len(variants)) * 0.6
     means = summary["mean"].values
     ses = summary["se"].values
     colors = [color_map.get(v, "#888") for v in variants]
 
-    bars = ax.bar(x, means, yerr=ses, capsize=4, color=colors,
+    bars = ax.bar(x, means, 0.28, yerr=ses, capsize=4, color=colors,
                   alpha=0.85, edgecolor="black", linewidth=0.5)
     # seed dots
     for i, v in enumerate(variants):
         vals = per_seed[per_seed["variant"] == v][metric].values
-        jitter = (np.random.RandomState(42 + i).uniform(-0.12, 0.12, size=len(vals)))
+        jitter = (np.random.RandomState(42 + i).uniform(-0.08, 0.08, size=len(vals)))
         ax.scatter(np.full_like(vals, x[i], dtype=float) + jitter, vals,
                    s=18, color="white", edgecolor=colors[i],
                    linewidth=0.8, zorder=3, alpha=0.95)
+    ax.set_xlim(x[0] - 0.4, x[-1] + 0.4)
     if show_xticks:
         ax.set_xticks(x)
         ax.set_xticklabels(variants, fontsize=9)
     else:
         ax.set_xticks([])
     if title:
-        ax.set_title(title)
+        ax.set_title(title, fontsize=10)
+    if ylabel:
+        ax.set_ylabel(ylabel)
+    ax.yaxis.grid(True, alpha=0.25, linestyle="-", linewidth=0.5)
+    ax.set_axisbelow(True)
+
+
+def point_with_seed_dots(
+    ax, summary: pd.DataFrame, per_seed: pd.DataFrame, metric: str,
+    color_map: dict, title: str | None = None, ylabel: str | None = None,
+    show_xticks: bool = True,
+):
+    """Point + SE + jittered per-seed scatter (no bars). For bounded style
+    metrics on a zoomed axis: filled bars are misleading there.
+    See feedback_bounded_style_metric_plotting.
+    """
+    variants = list(summary["variant"])
+    x = np.arange(len(variants))
+    for i, v in enumerate(variants):
+        row = summary[summary["variant"] == v].iloc[0]
+        seed_vals = per_seed[per_seed["variant"] == v][metric].values
+        rng = np.random.RandomState(hash((metric, v)) & 0xFFFF)
+        jitter = rng.uniform(-0.10, 0.10, size=len(seed_vals))
+        ax.scatter(np.full_like(seed_vals, i, dtype=float) + jitter, seed_vals,
+                   s=22, color=color_map.get(v, "#888"),
+                   edgecolor="white", linewidth=0.4,
+                   zorder=3, alpha=0.85)
+        ax.errorbar(i, row["mean"], yerr=row["se"],
+                    fmt="D", color="black",
+                    markerfacecolor=color_map.get(v, "#888"),
+                    markersize=5, capsize=3,
+                    markeredgecolor="black", markeredgewidth=0.6,
+                    elinewidth=1.0, zorder=5)
+    if show_xticks:
+        ax.set_xticks(x)
+        ax.set_xticklabels(variants, fontsize=9)
+    else:
+        ax.set_xticks([])
+    if title:
+        ax.set_title(title, fontsize=10)
+    if ylabel:
+        ax.set_ylabel(ylabel)
+    ax.yaxis.grid(True, alpha=0.25, linestyle="-", linewidth=0.5)
+    ax.set_axisbelow(True)
+    ax.set_xlim(-0.5, len(variants) - 0.5)
+
+
+def grouped_points(
+    ax, df_summary: pd.DataFrame, group_col: str, sub_col: str,
+    value_col: str, se_col: str, color_map: dict,
+    per_seed: pd.DataFrame | None = None, metric: str | None = None,
+    title: str | None = None, ylabel: str | None = None,
+    group_order: list | None = None, sub_order: list | None = None,
+):
+    """Grouped point + SE + jittered seed scatter. For bounded style metrics
+    plotted across env groups on a zoomed axis. Mirrors grouped_bars layout
+    so swapping is straightforward.
+    """
+    groups = group_order or list(df_summary[group_col].unique())
+    subs = sub_order or list(df_summary[sub_col].unique())
+    n_sub = len(subs)
+    width = 0.8 / n_sub
+    x_outer = np.arange(len(groups))
+    for j, sub in enumerate(subs):
+        offset = (j - (n_sub - 1) / 2) * width
+        for i, g in enumerate(groups):
+            row = df_summary[(df_summary[group_col] == g) & (df_summary[sub_col] == sub)]
+            if len(row) == 0:
+                continue
+            mean = float(row[value_col].iloc[0])
+            se = float(row[se_col].iloc[0])
+            xc = x_outer[i] + offset
+            if per_seed is not None and metric is not None:
+                vals = per_seed[(per_seed[group_col] == g)
+                                & (per_seed[sub_col] == sub)][metric].values
+                rng = np.random.RandomState(hash((metric, sub, g)) & 0xFFFF)
+                jitter = rng.uniform(-width * 0.25, width * 0.25, size=len(vals))
+                ax.scatter(np.full_like(vals, xc, dtype=float) + jitter, vals,
+                           s=22, color=color_map.get(sub, "#888"),
+                           edgecolor="white", linewidth=0.4,
+                           zorder=3, alpha=0.85)
+            ax.errorbar(xc, mean, yerr=se, fmt="D", color="black",
+                        markerfacecolor=color_map.get(sub, "#888"),
+                        markersize=5, capsize=3,
+                        markeredgecolor="black", markeredgewidth=0.6,
+                        elinewidth=1.0, zorder=5,
+                        label=sub if i == 0 else None)
+    ax.set_xticks(x_outer)
+    ax.set_xticklabels(groups, fontsize=9)
+    if title:
+        ax.set_title(title, fontsize=10)
     if ylabel:
         ax.set_ylabel(ylabel)
     ax.yaxis.grid(True, alpha=0.25, linestyle="-", linewidth=0.5)
@@ -326,7 +420,7 @@ def grouped_bars(
     ax.set_xticks(x_outer)
     ax.set_xticklabels(groups, fontsize=9)
     if title:
-        ax.set_title(title)
+        ax.set_title(title, fontsize=10)
     if ylabel:
         ax.set_ylabel(ylabel)
     ax.yaxis.grid(True, alpha=0.25, linestyle="-", linewidth=0.5)
@@ -394,13 +488,30 @@ def save_figure(fig, fig_dir: Path, slug: str):
 FIG1_METRICS = [
     "landed_pct",
     "thrust_autocorr_lag1",
-    "side_thrust_reversals",
+    "side_thrust_reversals_per_step",
     "time_to_first_contact",
 ]
 
 
+def _ttest_cohens_d(per_seed: pd.DataFrame, metric: str,
+                    group_a: str = "labeled", group_b: str = "blind"
+                    ) -> tuple[float | None, float | None]:
+    """Welch's t-test + Cohen's d on per-seed means. Used for derived metrics
+    not present in the precomputed stat_tests.json."""
+    a = per_seed[per_seed["variant"] == group_a][metric].values
+    b = per_seed[per_seed["variant"] == group_b][metric].values
+    if len(a) < 2 or len(b) < 2:
+        return None, None
+    from scipy import stats as sp
+    t, p = sp.ttest_ind(a, b, equal_var=False)
+    sa, sb = a.std(ddof=1), b.std(ddof=1)
+    sp_pool = np.sqrt(((len(a)-1)*sa**2 + (len(b)-1)*sb**2) / (len(a) + len(b) - 2))
+    d = (a.mean() - b.mean()) / sp_pool if sp_pool > 0 else None
+    return float(p), float(d) if d is not None else None
+
+
 def build_fig1(out_root: Path):
-    name = "parametric-vs-behavioral-v2-2026-05-13"
+    name = f"parametric-vs-behavioral-v2-{DATE_TAG}"
     comp = "full-variation-easy"
     csv = cross_config_path(name) / comp / "metrics_by_variant.csv"
     df = load_metrics_csv(csv)
@@ -423,7 +534,19 @@ def build_fig1(out_root: Path):
             title=METRIC_LABELS.get(metric, metric),
             ylabel=None, show_xticks=True,
         )
+        # Force full natural range for bounded metrics so the panel does not
+        # imply landing rates above the plotted top are impossible / off-scale.
+        if metric.endswith("_pct"):
+            ax.set_ylim(0, 100)
+        elif metric == "thrust_autocorr_lag1" or metric.endswith("_autocorr_lag1"):
+            ax.set_ylim(0, 1.0)
+        elif metric == "frac_upright" or metric.startswith("frac_"):
+            ax.set_ylim(0, 1.0)
+        # Unbounded count/step metrics (reversals, time_to_first_contact) keep autoscale.
         p, d = lookup_pvalue_d(stats, metric)
+        if p is None:
+            # Derived metric not in precomputed stat_tests.json; compute inline
+            p, d = _ttest_cohens_d(per_seed, metric)
         if p is not None:
             ax.text(0.98, 0.96,
                     f"p={p:.4f}, d={d:.2f}" if d is not None else f"p={p:.4f}",
@@ -449,16 +572,20 @@ def build_fig1(out_root: Path):
         ])
 
     fig.suptitle(
-        "State-vector strategy split: full-variation easy"
-        "   (mean ± SE across N=10 seeds, dots = per-seed means)",
-        fontsize=12, fontweight="bold", y=1.0,
+        r"$\bf{Same\ Task,\ Different\ Controllers}$" "\n"
+        "\n"
+        "Strategy split: full-variation easy",
+        fontsize=14, y=1.0, linespacing=1.3,
     )
+    fig.text(0.5, -0.01,
+             "mean ± SE across N=10 seeds, dots = per-seed means",
+             ha="center", va="top", fontsize=9, color="#555")
     fig.tight_layout()
     save_figure(fig, fig_dir, "fig1-strategy-split")
 
     md = (
         "# Fig 1. State-vector strategy split (full-variation easy)\n\n"
-        "Source: `parametric-vs-behavioral-v2-2026-05-13/full-variation-easy`.\n"
+        f"Source: `parametric-vs-behavioral-v2-{DATE_TAG}/full-variation-easy`.\n"
         "N=10 seeds per variant. Mean ± SE across seed-level means.\n\n"
     )
     md += md_table(
@@ -487,96 +614,143 @@ def build_fig1(out_root: Path):
 # ====================================================================
 
 
+FIG2_METRICS = ["thrust_autocorr_lag1", "side_thrust_reversals_per_step"]
+
+
 def build_fig2(out_root: Path):
-    """Grouped bars: x = env (world-only, body-only, full-var), groups = labeled vs blind.
-    Single metric: thrust_autocorr_lag1.
+    """Body-vs-world diagnostic. Two panels (1x2), one per metric.
+    Each panel: grouped bars across {world-only, body-only, full-variation}
+    envs × {labeled, blind} with per-seed dots and per-group p/d annotation.
     """
     fig_dir = out_root / "fig2-body-vs-world"
-    name = "parametric-vs-behavioral-2026-05-13"
+    name = f"parametric-vs-behavioral-{DATE_TAG}"
     env_to_comp = [
-        ("world-only", "physics-only-easy"),  # physics-only env = only world varies
-        ("body-only", "vehicle-only-easy"),   # vehicle-only env = only body varies
+        ("world-only", "physics-only-easy"),
+        ("body-only", "vehicle-only-easy"),
         ("full-variation", "full-variation-easy"),
     ]
-    metric = "thrust_autocorr_lag1"
+    group_order = [e for e, _ in env_to_comp]
 
-    rows_summary = []
-    rows_per_seed = []
+    fig, axes = plt.subplots(1, 2, figsize=(11.0, 4.6), dpi=DPI)
     long_rows = []
-    md_rows = []
-    for env_label, comp in env_to_comp:
-        df = load_metrics_csv(cross_config_path(name) / comp / "metrics_by_variant.csv")
-        stats = load_stat_tests(name, comp)
-        summ = variant_summary(df, metric)
-        ps = per_seed_means(df, metric)
-        for v in ["labeled", "blind"]:
-            r = summ[summ["variant"] == v].iloc[0]
-            rows_summary.append({
-                "env": env_label, "variant": v,
-                "mean": r["mean"], "se": r["se"], "std": r["std"], "n": int(r["n"]),
+    md_rows_by_metric = {m: [] for m in FIG2_METRICS}
+
+    for ax, metric in zip(axes, FIG2_METRICS):
+        rows_summary = []
+        rows_per_seed = []
+        pd_per_group = {}
+        for env_label, comp in env_to_comp:
+            df = load_metrics_csv(
+                cross_config_path(name) / comp / "metrics_by_variant.csv")
+            stats = load_stat_tests(name, comp)
+            summ = variant_summary(df, metric)
+            ps = per_seed_means(df, metric)
+            for v in ["labeled", "blind"]:
+                r = summ[summ["variant"] == v].iloc[0]
+                rows_summary.append({
+                    "env": env_label, "variant": v,
+                    "mean": r["mean"], "se": r["se"],
+                    "std": r["std"], "n": int(r["n"]),
+                })
+            for _, r in ps.iterrows():
+                rows_per_seed.append({"env": env_label, "variant": r["variant"],
+                                      metric: r[metric]})
+            p, d = lookup_pvalue_d(stats, metric)
+            pd_per_group[env_label] = (p, d)
+            lab = summ[summ["variant"] == "labeled"].iloc[0]
+            bli = summ[summ["variant"] == "blind"].iloc[0]
+            md_rows_by_metric[metric].append([
+                env_label,
+                f"{fmt(lab['mean'], 3)} ± {fmt(lab['se'], 3)}",
+                f"{fmt(bli['mean'], 3)} ± {fmt(bli['se'], 3)}",
+                fmt(p, 4), fmt(d, 2),
+            ])
+            long_rows.append({
+                "figure": "fig2", "env": env_label, "metric": metric,
+                "labeled_mean": lab["mean"], "labeled_se": lab["se"],
+                "blind_mean": bli["mean"], "blind_se": bli["se"],
+                "p_value": p, "cohens_d": d, "n_seeds": int(lab["n"]),
             })
-        for _, r in ps.iterrows():
-            rows_per_seed.append({"env": env_label, "variant": r["variant"],
-                                  metric: r[metric]})
-        p, d = lookup_pvalue_d(stats, metric)
-        lab = summ[summ["variant"] == "labeled"].iloc[0]
-        bli = summ[summ["variant"] == "blind"].iloc[0]
-        md_rows.append([
-            env_label,
-            f"{fmt(lab['mean'], 3)} ± {fmt(lab['se'], 3)}",
-            f"{fmt(bli['mean'], 3)} ± {fmt(bli['se'], 3)}",
-            fmt(p, 4), fmt(d, 2),
-        ])
-        long_rows.append({
-            "figure": "fig2", "env": env_label, "metric": metric,
-            "labeled_mean": lab["mean"], "labeled_se": lab["se"],
-            "blind_mean": bli["mean"], "blind_se": bli["se"],
-            "p_value": p, "cohens_d": d, "n_seeds": int(lab["n"]),
-        })
 
-    df_summary = pd.DataFrame(rows_summary)
-    df_per_seed = pd.DataFrame(rows_per_seed)
+        df_summary = pd.DataFrame(rows_summary)
+        df_per_seed = pd.DataFrame(rows_per_seed)
+        grouped_bars(
+            ax, df_summary, "env", "variant", "mean", "se",
+            {"labeled": COLORS["labeled"], "blind": COLORS["blind"]},
+            per_seed=df_per_seed, metric=metric,
+            title=METRIC_LABELS.get(metric, metric),
+            ylabel=METRIC_LABELS.get(metric, metric),
+            group_order=group_order, sub_order=["labeled", "blind"],
+        )
+        if metric == "thrust_autocorr_lag1":
+            ax.set_ylim(0, 1.0)
+        elif metric == "side_thrust_reversals_per_step":
+            ymax = df_summary["mean"].max() + df_summary["se"].max() * 2
+            ax.set_ylim(0, ymax * 1.18)
 
-    fig, ax = plt.subplots(1, 1, figsize=FIG_SIZE_SINGLE, dpi=DPI)
-    grouped_bars(
-        ax, df_summary, "env", "variant", "mean", "se",
-        {"labeled": COLORS["labeled"], "blind": COLORS["blind"]},
-        per_seed=df_per_seed, metric=metric,
-        title="Body-vs-world diagnostic: thrust autocorrelation",
-        ylabel=METRIC_LABELS[metric],
-        group_order=["world-only", "body-only", "full-variation"],
-        sub_order=["labeled", "blind"],
+        # Per-group p/d annotation, placed just above the taller bar in the pair.
+        y_lo, y_hi = ax.get_ylim()
+        offset = 0.025 * (y_hi - y_lo)
+        for i, env_label in enumerate(group_order):
+            p, d = pd_per_group[env_label]
+            if p is None:
+                continue
+            top = df_summary[df_summary["env"] == env_label]
+            bar_top = float((top["mean"] + top["se"]).max())
+            txt = f"p={p:.4f}\nd={d:.2f}" if d is not None else f"p={p:.4f}"
+            ax.text(i, bar_top + offset, txt,
+                    ha="center", va="bottom", fontsize=8, color="#444")
+
+        if metric == FIG2_METRICS[1]:
+            ax.legend(loc="upper left", frameon=False, fontsize=9)
+        else:
+            leg = ax.get_legend()
+            if leg is not None:
+                leg.remove()
+
+    fig.suptitle(
+        r"$\bf{Body\ Uncertainty\ Changes\ the\ Controller}$" "\n"
+        "\n"
+        "Body-vs-world behavioral diagnostic: blind vs labeled (easy profile)",
+        fontsize=14, y=1.0, linespacing=1.3,
     )
-    ax.set_ylim(0.6, 1.0)
+    fig.text(0.5, -0.01,
+             "mean ± SE across N=10 seeds, dots = per-seed means",
+             ha="center", va="top", fontsize=9, color="#555")
     fig.tight_layout()
     save_figure(fig, fig_dir, "fig2-body-vs-world")
 
     md = (
-        "# Fig 2. Body-vs-world diagnostic (easy profile, thrust autocorrelation)\n\n"
-        "Sources: `parametric-vs-behavioral-2026-05-13/{physics-only-easy,"
-        "vehicle-only-easy,full-variation-easy}`.\n"
+        "# Fig 2. Body Uncertainty Opens the Reactive Gap\n\n"
+        f"Sources: `parametric-vs-behavioral-{DATE_TAG}/"
+        "{physics-only-easy,vehicle-only-easy,full-variation-easy}`.\n"
         "World-only = physics-only env (only gravity/wind/turbulence vary). "
         "Body-only = vehicle-only env (only engine/density/damping vary). "
         "Full-variation = both vary.\n\n"
     )
-    md += md_table(
-        ["Env", "Labeled autocorr (mean ± SE)", "Blind autocorr (mean ± SE)",
-         "p", "Cohen's d"],
-        md_rows,
-    )
+    for metric in FIG2_METRICS:
+        md += f"## {METRIC_LABELS.get(metric, metric)}\n\n"
+        md += md_table(
+            ["Env",
+             f"Labeled (mean ± SE)",
+             f"Blind (mean ± SE)",
+             "p", "Cohen's d"],
+            md_rows_by_metric[metric],
+        )
+        md += "\n"
     save_numbers(
         fig_dir, pd.DataFrame(long_rows), md,
         {
             "figure": "fig2",
-            "title": "Body-vs-world diagnostic (thrust autocorrelation)",
+            "title": "Body Uncertainty Opens the Reactive Gap",
             "source_csvs": [
                 str(cross_config_path(name) / c / "metrics_by_variant.csv")
                 for _, c in env_to_comp
             ],
             "source_stats": str(cross_config_path(name) / "stat_tests.json"),
             "manifest": "parametric-vs-behavioral.yaml",
-            "metric": metric,
-            "envs": [e for e, _ in env_to_comp],
+            "metrics": FIG2_METRICS,
+            "envs": group_order,
             "n_seeds_per_variant": 10,
         },
     )
@@ -597,118 +771,265 @@ CORRUPT_VARIANTS = {
 CORRUPT_ORDER = ["baseline", "world-zero", "body-zero", "all-zero"]
 
 
+FIG3_ENV_LABELS = {
+    "full-variation-easy": "full-variation",
+    "physics-only-easy":   "world-only",
+    "vehicle-only-easy":   "body-only",
+}
+FIG3_MODE_COLORS = {
+    "baseline":   "#2c7fb8",
+    "world-zero": "#7fcdbb",
+    "body-zero":  "#f2a154",
+    "all-zero":   "#c0392b",
+}
+# Cross-config CSVs to read blind-reference autocorr from for each env column.
+# Keyed by env-column label used in build_fig3.
+FIG3_BLIND_REF_CSV = {
+    "full-variation": lambda: cross_config_path(
+        f"parametric-vs-behavioral-v2-{DATE_TAG}") / "full-variation-easy" /
+        "metrics_by_variant.csv",
+    "world-only":     lambda: cross_config_path(
+        f"parametric-vs-behavioral-{DATE_TAG}") / "physics-only-easy" /
+        "metrics_by_variant.csv",
+    "body-only":      lambda: cross_config_path(
+        f"parametric-vs-behavioral-{DATE_TAG}") / "vehicle-only-easy" /
+        "metrics_by_variant.csv",
+}
+
+
+def _blind_autocorr_ref(env_label: str):
+    """Per-seed mean + SE of thrust_autocorr_lag1 for the blind variant."""
+    csv = FIG3_BLIND_REF_CSV[env_label]()
+    if not csv.exists():
+        return None, None
+    df = pd.read_csv(csv)
+    df = df[df["variant"] == "blind"]
+    ps = df.groupby("seed")["thrust_autocorr_lag1"].mean()
+    if len(ps) < 2:
+        return float(ps.mean()), 0.0
+    return float(ps.mean()), float(ps.std(ddof=1) / np.sqrt(len(ps)))
+
+
 def build_fig3(out_root: Path):
-    """Grouped bars: outer = env, inner = corruption mode, y = landed_pct."""
-    fig_dir = out_root / "fig3-corruption-ladder"
-    name = "body-vs-world-corruption-2026-05-13"
+    """Wrong Labels, Same Controller Style. 2 rows × 3 cols.
+    Autocorr row uses filled bars on full [0,1] range (per user preference).
+    """
+    _build_fig3_variant(out_root, autocorr_style="bars-full",
+                        out_slug="fig3-corruption-style")
+
+
+def _build_fig3_variant(out_root: Path, autocorr_style: str, out_slug: str):
+    fig_dir = out_root / "fig3-corruption-style"
+    name = f"body-vs-world-corruption-{DATE_TAG}"
     env_comps = [
         ("full-variation", "full-variation-easy"),
-        ("physics-only", "physics-only-easy"),
-        ("vehicle-only", "vehicle-only-easy"),
+        ("world-only",     "physics-only-easy"),
+        ("body-only",      "vehicle-only-easy"),
     ]
-    metric = "landed_pct"
+    metrics = ["landed_pct", "thrust_autocorr_lag1"]
 
-    rows_summary = []
-    rows_per_seed = []
-    md_rows = []
+    fig, axes = plt.subplots(
+        2, 3, figsize=(11.5, 6.2), dpi=DPI,
+        gridspec_kw={"height_ratios": [2.4, 1.4]},
+        sharex="col",
+    )
+
     long_rows = []
-    for env_label, comp in env_comps:
+    md_rows_by_metric = {m: [] for m in metrics}
+
+    for col, (env_label, comp) in enumerate(env_comps):
         df = load_metrics_csv(cross_config_path(name) / comp / "metrics_by_variant.csv")
         df = df[df["variant"].isin(CORRUPT_VARIANTS.keys())].copy()
         df["mode"] = df["variant"].map(CORRUPT_VARIANTS)
-        # variant_summary expects a 'variant' column; rebrand mode → variant temporarily
+        # per_seed_means groups by ("variant", "seed") and handles _pct outcomes.
         df_tmp = df.rename(columns={"variant": "_orig_variant", "mode": "variant"})
-        summ = variant_summary(df_tmp, metric)
-        ps = per_seed_means(df_tmp, metric)
-        for mode in CORRUPT_ORDER:
-            r = summ[summ["variant"] == mode]
-            if len(r) == 0:
-                continue
-            row = r.iloc[0]
-            rows_summary.append({
-                "env": env_label, "variant": mode,
-                "mean": row["mean"], "se": row["se"], "std": row["std"], "n": int(row["n"]),
-            })
-        for _, r in ps.iterrows():
-            rows_per_seed.append({"env": env_label, "variant": r["variant"],
-                                  metric: r[metric]})
-        # Build md per env: one row per mode
-        for mode in CORRUPT_ORDER:
-            r = summ[summ["variant"] == mode]
-            if len(r) == 0:
-                md_rows.append([env_label, mode, "—", "—"])
-                continue
-            md_rows.append([
-                env_label, mode,
-                f"{fmt(r.iloc[0]['mean'], 1)} ± {fmt(r.iloc[0]['se'], 1)}",
-                int(r.iloc[0]["n"]),
+
+        for row_idx, metric in enumerate(metrics):
+            ax = axes[row_idx, col]
+            ps = per_seed_means(df_tmp, metric)
+            per_mode = {}
+            for mode in CORRUPT_ORDER:
+                vals = ps[ps["variant"] == mode][metric].values
+                per_mode[mode] = vals
+
+            baseline_vals = per_mode["baseline"]
+            # Squeeze x spacing now that bars are narrow so the cell isn't
+            # mostly whitespace.
+            x = np.arange(len(CORRUPT_ORDER)) * 0.6
+            means = np.array([
+                per_mode[m].mean() if len(per_mode[m]) else np.nan
+                for m in CORRUPT_ORDER
             ])
-            long_rows.append({
-                "figure": "fig3", "env": env_label, "mode": mode, "metric": metric,
-                "mean": r.iloc[0]["mean"], "se": r.iloc[0]["se"],
-                "std": r.iloc[0]["std"], "n_seeds": int(r.iloc[0]["n"]),
-            })
+            ses = np.array([
+                per_mode[m].std(ddof=1) / np.sqrt(len(per_mode[m]))
+                if len(per_mode[m]) > 1 else 0.0
+                for m in CORRUPT_ORDER
+            ])
+            colors = [FIG3_MODE_COLORS[m] for m in CORRUPT_ORDER]
+            use_bars = (metric == "landed_pct"
+                        or (metric == "thrust_autocorr_lag1"
+                            and autocorr_style == "bars-full"))
+            if use_bars:
+                # Bars + SE + per-seed dots for the headline collapse story.
+                ax.bar(x, means, 0.28, yerr=ses, capsize=3,
+                       color=colors, alpha=0.88,
+                       edgecolor="black", linewidth=0.5)
+                for i, mode in enumerate(CORRUPT_ORDER):
+                    v = per_mode[mode]
+                    if len(v) == 0:
+                        continue
+                    rng = np.random.RandomState(hash((metric, env_label, mode)) & 0xFFFF)
+                    jitter = rng.uniform(-0.10, 0.10, size=len(v))
+                    ax.scatter(np.full_like(v, x[i], dtype=float) + jitter, v,
+                               s=14, color="white",
+                               edgecolor=FIG3_MODE_COLORS[mode],
+                               linewidth=0.7, zorder=3, alpha=0.95)
+            else:
+                # Dot + SE error bars + jittered seed points, no bars.
+                # Bars on a zoomed [0.6,1.0] axis would imply the floor is
+                # meaningful and visually exaggerate the differences.
+                for i, mode in enumerate(CORRUPT_ORDER):
+                    v = per_mode[mode]
+                    if len(v) == 0:
+                        continue
+                    rng = np.random.RandomState(hash((metric, env_label, mode)) & 0xFFFF)
+                    jitter = rng.uniform(-0.10, 0.10, size=len(v))
+                    ax.scatter(np.full_like(v, x[i], dtype=float) + jitter, v,
+                               s=22, color=FIG3_MODE_COLORS[mode],
+                               edgecolor="white", linewidth=0.4,
+                               zorder=3, alpha=0.85)
+                    # Mean marker: smaller diamond + thin error bar so seed
+                    # points stay readable alongside it.
+                    ax.errorbar(x[i], means[i], yerr=ses[i],
+                                fmt="D", color="black",
+                                markerfacecolor=FIG3_MODE_COLORS[mode],
+                                markersize=5, capsize=3,
+                                markeredgecolor="black", markeredgewidth=0.6,
+                                elinewidth=1.0, zorder=5)
 
-    df_summary = pd.DataFrame(rows_summary)
-    df_per_seed = pd.DataFrame(rows_per_seed)
+            ax.set_xticks(x)
+            ax.set_xticklabels(CORRUPT_ORDER, fontsize=8, rotation=20)
+            ax.set_xlim(x[0] - 0.4, x[-1] + 0.4)
+            ax.yaxis.grid(True, alpha=0.25, linestyle="-", linewidth=0.5)
+            ax.set_axisbelow(True)
+            if metric == "landed_pct":
+                ax.set_ylim(0, 100)
+            elif metric == "thrust_autocorr_lag1":
+                ax.set_ylim(0, 1.0) if autocorr_style == "bars-full" else ax.set_ylim(0.6, 1.0)
+                # Blind reference: horizontal dashed line + ±SE band, so the
+                # reader can judge whether corrupted labeled drops toward blind.
+                mu, se = _blind_autocorr_ref(env_label)
+                if mu is not None:
+                    ax.axhline(mu, color="#444", lw=1.0, linestyle="--",
+                               zorder=1)
+                    # Label sits below the dashed line at the left edge with
+                    # enough offset to not touch the line itself.
+                    y_lo, y_hi = ax.get_ylim()
+                    label_y = mu - 0.03 * (y_hi - y_lo)
+                    # Sit just inside the left edge (a smidge right of the
+                    # y-axis spine) so it doesn't crash into the axis line.
+                    ax.text(x[0] - 0.30, label_y, f"blind ref = {mu:.2f}",
+                            ha="left", va="top", fontsize=7.5,
+                            color="#444", fontstyle="italic")
+            if col == 0:
+                ax.set_ylabel(METRIC_LABELS[metric], fontsize=10)
+            if row_idx == 0:
+                ax.set_title(env_label, fontsize=11, fontweight="bold")
 
-    fig, ax = plt.subplots(1, 1, figsize=FIG_SIZE_LADDER, dpi=DPI)
-    grouped_bars(
-        ax, df_summary, "env", "variant", "mean", "se",
-        {m: COLORS[m] for m in CORRUPT_ORDER},
-        per_seed=df_per_seed, metric=metric,
-        title="Corruption ladder: landing rate by environment and corruption mode (labeled agent)",
-        ylabel=METRIC_LABELS[metric],
-        group_order=["full-variation", "physics-only", "vehicle-only"],
-        sub_order=CORRUPT_ORDER,
+            # Per-bar p/d vs clean baseline (skip baseline itself).
+            y_lo, y_hi = ax.get_ylim()
+            offset = 0.025 * (y_hi - y_lo)
+            for i, mode in enumerate(CORRUPT_ORDER):
+                if mode == "baseline" or len(baseline_vals) < 2 or len(per_mode[mode]) < 2:
+                    continue
+                p, d = _ttest_cohens_d_arrays(baseline_vals, per_mode[mode])
+                if p is None:
+                    continue
+                bar_top = means[i] + ses[i]
+                txt = f"p={p:.3f}\nd={d:.2f}" if d is not None else f"p={p:.3f}"
+                ax.text(x[i], bar_top + offset, txt,
+                        ha="center", va="bottom", fontsize=7, color="#444")
+
+            # Record numbers.
+            for i, mode in enumerate(CORRUPT_ORDER):
+                v = per_mode[mode]
+                if len(v) == 0:
+                    continue
+                p, d = (None, None)
+                if mode != "baseline" and len(baseline_vals) >= 2:
+                    p, d = _ttest_cohens_d_arrays(baseline_vals, v)
+                long_rows.append({
+                    "figure": "fig3", "env": env_label, "mode": mode,
+                    "metric": metric, "mean": float(v.mean()),
+                    "se": float(ses[i]), "std": float(v.std(ddof=1) if len(v) > 1 else 0.0),
+                    "n_seeds": int(len(v)),
+                    "p_vs_clean": p, "cohens_d_vs_clean": d,
+                })
+                md_rows_by_metric[metric].append([
+                    env_label, mode,
+                    f"{fmt(v.mean(), 3)} ± {fmt(ses[i], 3)}",
+                    fmt(p, 4) if p is not None else "—",
+                    fmt(d, 2) if d is not None else "—",
+                ])
+
+    fig.suptitle(
+        r"$\bf{Wrong\ Labels,\ Same\ Controller\ Style}$" "\n"
+        "\n"
+        "Labeled agent under label corruption (easy profile)",
+        fontsize=14, y=1.0, linespacing=1.3,
     )
-    ax.set_ylim(0, 100)
-    # Annotate the physics-only body-zero hover/timeout regime.
-    # Text sits directly above the bar with a short downward arrow — kept
-    # inside the physics-only column so it can't be misread as pointing
-    # from vehicle-only.
-    try:
-        pob_row = df_summary[(df_summary["env"] == "physics-only")
-                             & (df_summary["variant"] == "body-zero")].iloc[0]
-        n_sub = len(CORRUPT_ORDER)
-        width = 0.8 / n_sub
-        inner_idx = CORRUPT_ORDER.index("body-zero")
-        offset = (inner_idx - (n_sub - 1) / 2) * width
-        x_anchor = 1 + offset  # physics-only is outer index 1
-        ax.annotate("hover / timeout\nregime",
-                    xy=(x_anchor, pob_row["mean"] + pob_row["se"] + 1.5),
-                    xytext=(x_anchor, 92),
-                    arrowprops=dict(arrowstyle="->", color="#444", lw=0.8,
-                                    shrinkA=0, shrinkB=2),
-                    fontsize=8, color="#444", ha="center", va="top",
-                    fontstyle="italic")
-    except Exception:
-        pass
-
+    fig.text(0.5, -0.02,
+             "mean ± SE across N=10 seeds, dots = per-seed means",
+             ha="center", va="top", fontsize=9, color="#555")
     fig.tight_layout()
-    save_figure(fig, fig_dir, "fig3-corruption-ladder")
+    save_figure(fig, fig_dir, out_slug)
 
     md = (
-        "# Fig 3. Corruption ladder (landing rate by environment and corruption mode)\n\n"
-        "Source: `body-vs-world-corruption-2026-05-13/{full-variation-easy,"
-        "physics-only-easy,vehicle-only-easy}`. Labeled agent only. N=10 seeds.\n\n"
+        "# Fig 3. Wrong Labels, Same Controller Style\n\n"
+        f"Source: `body-vs-world-corruption-{DATE_TAG}/"
+        "{full-variation-easy,physics-only-easy,vehicle-only-easy}`. "
+        "Labeled agent only. N=10 seeds per (env, mode).\n\n"
+        "Reading: rows are metrics; columns are envs. Each cell shows the "
+        "labeled agent under clean labels vs three corruption modes. "
+        "p/d above each non-clean bar is Welch's t-test vs the clean baseline "
+        "for that env+metric, per-seed means.\n\n"
     )
-    md += md_table(["Env", "Mode", "Landing % (mean ± SE)", "N"], md_rows)
+    for metric in metrics:
+        md += f"## {METRIC_LABELS.get(metric, metric)}\n\n"
+        md += md_table(
+            ["Env", "Mode", f"{metric} (mean ± SE)", "p (vs clean)", "d (vs clean)"],
+            md_rows_by_metric[metric],
+        )
+        md += "\n"
     save_numbers(
         fig_dir, pd.DataFrame(long_rows), md,
         {
             "figure": "fig3",
-            "title": "Corruption ladder: landing rate",
+            "title": "Wrong Labels, Same Controller Style",
             "source_csvs": [str(cross_config_path(name) / c / "metrics_by_variant.csv")
                             for _, c in env_comps],
             "manifest": "body-vs-world-corruption.yaml",
-            "metric": metric,
+            "metrics": metrics,
             "envs": [e for e, _ in env_comps],
             "modes": CORRUPT_ORDER,
             "n_seeds_per_variant": 10,
         },
     )
     print(f"  wrote: {fig_dir}/")
+
+
+def _ttest_cohens_d_arrays(a, b):
+    """Welch's t-test + Cohen's d on two 1-D numpy arrays (per-seed means)."""
+    a = np.asarray(a, dtype=float)
+    b = np.asarray(b, dtype=float)
+    if len(a) < 2 or len(b) < 2:
+        return None, None
+    from scipy import stats as sp
+    _, p = sp.ttest_ind(a, b, equal_var=False)
+    sa, sb = a.std(ddof=1), b.std(ddof=1)
+    sp_pool = np.sqrt(((len(a)-1)*sa**2 + (len(b)-1)*sb**2) / (len(a) + len(b) - 2))
+    d = (a.mean() - b.mean()) / sp_pool if sp_pool > 0 else None
+    return float(p), float(d) if d is not None else None
 
 
 # ====================================================================
@@ -1113,7 +1434,8 @@ def wrap_overlay(out_root: Path):
 
 
 def _run_overlay_bd(out_root: Path, scenarios: dict, out_slug: str,
-                    title: str, top_note: str, seed: int = 0):
+                    title: str, top_note: str, seed: int = 0,
+                    suptitle_map: dict | None = None):
     """Shared V_BD render+wrap path. Iterates `scenarios` (dict of name -> CSV
     path) x {median, extreme} strategies, with optional RNG seed suffix.
     Writes PNGs, numbers.csv (merged across RNG seeds), numbers.md, metadata.json
@@ -1144,6 +1466,7 @@ def _run_overlay_bd(out_root: Path, scenarios: dict, out_slug: str,
             seed_tag = "" if seed == 0 else f"_seed{seed}"
             slug = f"{scenario}_{strategy}{seed_tag}"
             out_png = fig_dir / f"{slug}.png"
+            sup = (suptitle_map or {}).get((scenario, strategy))
             try:
                 meta = render_scenario_bd(
                     slug,
@@ -1151,6 +1474,7 @@ def _run_overlay_bd(out_root: Path, scenarios: dict, out_slug: str,
                     picks["labeled"]["traj_dir"],
                     BACKDROP_RGB, out_png,
                     seed=seed,
+                    suptitle=sup,
                 )
             except Exception as e:
                 print(f"  FAIL {scenario}/{strategy}: {e}")
@@ -1216,11 +1540,12 @@ def build_overlay_bd(out_root: Path, seed: int = 0):
     _run_overlay_bd(
         out_root, BD_SCENARIOS, "fig-overlay-state-vbd",
         title="State-vector trajectory overlay (V_BD)",
+        suptitle_map={("easy-ID", "median"): "Same Task, Different Controllers"},
         top_note=(
             "Top panel: 50 trajectories per condition on lunar lander backdrop, "
             "with reversal dots (yellow = main on/off; magenta = lateral L/R/none change). "
-            "Bottom panel: per-episode thrust action strip (sorted shortest to longest); "
-            "green > = landed, red > = failed."
+            "Bottom panel: per-episode thrust action strip (sorted by episode length); "
+            "▶ green = landed, ▶ red = failed."
         ),
         seed=seed,
     )
@@ -1488,6 +1813,175 @@ def build_overlay_bd_bodyworld(out_root: Path, seed: int = 0):
     )
 
 
+def build_overlay_b_bodyworld(out_root: Path, seed: int = 0):
+    """Body/world trajectory companion (5b). Produces under
+    `fig-overlay-body-world/`:
+      - vb-grid.{png,svg}: V_B-only 3-row × 2-col grid (full-variation,
+        world-only, body-only × blind, labeled), median seed per cell.
+      - world-only_easy_{median,extreme}.{png,svg}: V_BD per-condition.
+      - body-only_easy_{median,extreme}.{png,svg}: V_BD per-condition.
+    All seeds picked from `parametric-vs-behavioral-{DATE_TAG}` cross-config.
+    """
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from trajectory_overlay_variants import (
+        variant_B_grid, pick_seed_dirs, pick, pick_by_reversal_rate,
+        load_episode, render_scenario_bd,
+    )
+
+    fig_dir = out_root / "fig-overlay-body-world"
+    fig_dir.mkdir(parents=True, exist_ok=True)
+    if not BACKDROP_RGB.exists():
+        print(f"  ABORT: backdrop {BACKDROP_RGB} missing")
+        return
+
+    name = f"parametric-vs-behavioral-{DATE_TAG}"
+    row_specs = [
+        ("full-variation", "full-variation-easy"),
+        ("world-only",     "physics-only-easy"),
+        ("body-only",      "vehicle-only-easy"),
+    ]
+    backdrop = load_episode(BACKDROP_RGB)["rgb_frames"][-1]
+
+    # --- (1) V_B 3-row grid: produce median + extreme variants.
+    grid_records = []
+    for strategy in ("median", "extreme"):
+        rows = []
+        for row_label, comp in row_specs:
+            csv_path = cross_config_path(name) / comp / "metrics_by_variant.csv"
+            if not csv_path.exists():
+                print(f"  SKIP grid {row_label}/{strategy}: {csv_path} missing")
+                continue
+            picks = pick_seed_dirs(csv_path, strategy=strategy)
+            if strategy == "extreme":
+                # Within the cherry-picked seed, cherry-pick the 20 most-extreme
+                # episodes by per-step lateral reversal rate.
+                blind_eps   = pick_by_reversal_rate(picks["blind"]["traj_dir"],
+                                                    n=20, mode="most")
+                labeled_eps = pick_by_reversal_rate(picks["labeled"]["traj_dir"],
+                                                    n=20, mode="least")
+            else:
+                rng_b = np.random.default_rng(seed)
+                rng_l = np.random.default_rng(seed + 1)
+                blind_eps   = pick(picks["blind"]["traj_dir"],   n=50, outcome=None, rng=rng_b)
+                labeled_eps = pick(picks["labeled"]["traj_dir"], n=50, outcome=None, rng=rng_l)
+            rows.append({"label": row_label,
+                         "blind_eps": blind_eps,
+                         "labeled_eps": labeled_eps})
+            grid_records.append({
+                "artifact": f"vb-grid_{strategy}",
+                "env": row_label, "strategy": strategy,
+                "comp": comp, "rng_seed": seed,
+                "blind_seed":  picks["blind"]["seed"],
+                "blind_metric": picks["blind"]["metric_value"],
+                "blind_traj_dir": str(picks["blind"]["traj_dir"]),
+                "n_blind_plotted": len(blind_eps),
+                "labeled_seed": picks["labeled"]["seed"],
+                "labeled_metric": picks["labeled"]["metric_value"],
+                "labeled_traj_dir": str(picks["labeled"]["traj_dir"]),
+                "n_labeled_plotted": len(labeled_eps),
+            })
+
+        if rows:
+            out_png = fig_dir / f"vb-grid_{strategy}.png"
+            qualifier = (
+                "representative seeds (median), 50 random episodes per cell"
+                if strategy == "median"
+                else "contrast seeds + cherry-picked episodes "
+                     "(blind = top-20 most reactive, labeled = bottom-20 smoothest)"
+            )
+            variant_B_grid(
+                rows, backdrop, out_png,
+                suptitle=(
+                    r"$\bf{Body\ Uncertainty\ Changes\ the\ Controller}$" "\n"
+                    "\n"
+                    "State-vector blind vs labeled across body/world envs (easy profile)\n"
+                    f"{qualifier}"
+                ),
+                col_titles=("Blind agent", "Labeled agent"),
+            )
+            print(f"  wrote: {out_png}")
+
+    # --- (2) V_BD per-condition: world-only / body-only × median / extreme.
+    bd_specs = [
+        ("full-variation_easy", "full-variation-easy"),
+        ("world-only_easy",     "physics-only-easy"),
+        ("body-only_easy",      "vehicle-only-easy"),
+    ]
+    bd_records = []
+    for slug, comp in bd_specs:
+        csv_path = cross_config_path(name) / comp / "metrics_by_variant.csv"
+        if not csv_path.exists():
+            print(f"  SKIP V_BD {slug}: {csv_path} missing")
+            continue
+        for strategy in ("median", "extreme"):
+            picks = pick_seed_dirs(csv_path, strategy=strategy)
+            out_png = fig_dir / f"{slug}_{strategy}.png"
+            try:
+                meta = render_scenario_bd(
+                    f"{slug}_{strategy}",
+                    picks["blind"]["traj_dir"],
+                    picks["labeled"]["traj_dir"],
+                    BACKDROP_RGB, out_png, seed=seed,
+                )
+            except Exception as e:
+                print(f"  FAIL V_BD {slug}/{strategy}: {e}")
+                continue
+            bd_records.append({
+                "artifact": "vbd", "env": slug, "strategy": strategy,
+                "comp": comp, "rng_seed": seed,
+                "blind_seed":  picks["blind"]["seed"],
+                "blind_metric": picks["blind"]["metric_value"],
+                "blind_traj_dir": str(picks["blind"]["traj_dir"]),
+                "labeled_seed": picks["labeled"]["seed"],
+                "labeled_metric": picks["labeled"]["metric_value"],
+                "labeled_traj_dir": str(picks["labeled"]["traj_dir"]),
+                "n_blind_plotted": meta["n_blind"],
+                "n_labeled_plotted": meta["n_labeled"],
+                "image": str(out_png),
+            })
+            print(f"  wrote: {out_png}")
+
+    records = grid_records + bd_records
+    if records:
+        df = pd.DataFrame(records)
+        df.to_csv(fig_dir / "numbers.csv", index=False)
+        md = [
+            "# Fig 5b. Body Uncertainty Changes the Controller",
+            "",
+            f"Source: `{name}/{{full-variation-easy,physics-only-easy,vehicle-only-easy}}`.",
+            "",
+            "Artifacts:",
+            "- `vb-grid_median.png` — V_B only, 3 rows × 2 cols. Median (representative) seed per cell.",
+            "- `vb-grid_extreme.png` — V_B only, same grid, contrast seeds (blind = most reactive, labeled = smoothest).",
+            "- `full-variation_easy_{median,extreme}.png` — V_BD per-condition.",
+            "- `world-only_easy_{median,extreme}.png` — V_BD per-condition.",
+            "- `body-only_easy_{median,extreme}.png` — V_BD per-condition.",
+            "",
+            "Selection metric: `side_thrust_reversals`.",
+            "  - median: seed mean closest to within-variant mean (representative).",
+            "  - extreme: blind = most reactive seed; labeled = smoothest seed.",
+            "",
+            "| artifact | env | strategy | blind seed | blind sel.metric | labeled seed | labeled sel.metric |",
+            "|---|---|---|---|---|---|---|",
+        ]
+        for r in records:
+            md.append(f"| {r['artifact']} | {r['env']} | {r['strategy']} | "
+                      f"s{r['blind_seed']} | {r['blind_metric']:.1f} | "
+                      f"s{r['labeled_seed']} | {r['labeled_metric']:.1f} |")
+        (fig_dir / "numbers.md").write_text("\n".join(md) + "\n")
+        (fig_dir / "metadata.json").write_text(json.dumps({
+            "figure": "fig-overlay-body-world",
+            "title": "Body Uncertainty Changes the Controller",
+            "cross_config_dir": str(cross_config_path(name)),
+            "selection_metric": "side_thrust_reversals",
+            "backdrop_rgb": str(BACKDROP_RGB),
+            "underlying_script": "scripts/viz/trajectory_overlay_variants.py",
+            "rng_seed": seed,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+        }, indent=2))
+
+
 # ====================================================================
 # CLI
 # ====================================================================
@@ -1503,6 +1997,7 @@ BUILDERS = {
     "overlays": wrap_overlay,
     "overlay_bd": build_overlay_bd,
     "overlay_bd_bodyworld": build_overlay_bd_bodyworld,
+    "overlay_b_bodyworld": build_overlay_b_bodyworld,
     "overlay_bd_e3": build_overlay_bd_e3,
     "fig5_ood_panel": build_e3_ood_behavioral_panel,
 }

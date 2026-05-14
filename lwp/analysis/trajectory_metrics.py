@@ -195,10 +195,16 @@ def compute_metrics(npz_path: str | Path) -> dict:
     # Measures lateral control oscillation.
     side_signs = np.sign(side_thrusts)
     side_thrust_reversals = int(np.sum(np.abs(np.diff(side_signs)) > 0))
+    # Length-normalized rate variant: avoids longer episodes inflating the count.
+    side_thrust_reversals_per_step = (
+        float(side_thrust_reversals / T) if T > 0 else 0.0
+    )
 
     # Total fuel: sum of absolute thrust values (main + |side|).
     # Proportional to total impulse applied.
     total_fuel = float(np.sum(main_thrusts) + np.sum(np.abs(side_thrusts)))
+    # Length-normalized rate variant: mean fuel applied per step.
+    fuel_per_step = float(total_fuel / T) if T > 0 else 0.0
 
     # Fuel efficiency: reward per unit fuel (only for landed episodes).
     # Higher = better — agent achieved good reward with less thrust.
@@ -224,6 +230,8 @@ def compute_metrics(npz_path: str | Path) -> dict:
     # Indicates controlled descent vs ballistic/crash trajectory.
     hover_mask = (np.abs(states[:-1, VY]) < 0.1) & (states[:-1, Y_POS] > 0.1)
     hover_time = int(np.sum(hover_mask))
+    # Length-normalized rate variant: fraction of steps spent hovering.
+    hover_frac = float(hover_time / T) if T > 0 else 0.0
 
     # Time to first leg contact: first step where either leg touches ground.
     # Measures how quickly the lander reaches the surface.
@@ -384,13 +392,16 @@ def compute_metrics(npz_path: str | Path) -> dict:
         "mean_abs_side_thrust": mean_abs_side_thrust,
         "thrust_duty_cycle": thrust_duty_cycle,
         "side_thrust_reversals": side_thrust_reversals,
+        "side_thrust_reversals_per_step": side_thrust_reversals_per_step,
         "total_fuel": total_fuel,
+        "fuel_per_step": fuel_per_step,
         "fuel_efficiency": fuel_efficiency,
 
         # Control
         "mean_abs_angular_vel": mean_abs_angular_vel,
         "angle_at_landing": angle_at_landing,
         "hover_time": hover_time,
+        "hover_frac": hover_frac,
         "time_to_first_contact": time_to_first_contact,
 
         # Action distribution shape (Plan 17)
