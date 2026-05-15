@@ -511,8 +511,9 @@ def variant_BD(blind_eps, labeled_eps, backdrop, out: Path, t_max: int,
         ax_top.set_xticks([]); ax_top.set_yticks([])
         for spine in ax_top.spines.values():
             spine.set_visible(True)
+        title_suffix = r"\ agent" if titles is None else ""
         ax_top.set_title(
-            f"$\\bf{{{title}\\ agent}}$ (n={n_eps}){land_str}",
+            f"$\\bf{{{title}{title_suffix}}}$ (n={n_eps}){land_str}",
             fontsize=11, pad=10, linespacing=1.4,
         )
 

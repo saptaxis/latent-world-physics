@@ -1038,13 +1038,28 @@ def _ttest_cohens_d_arrays(a, b):
 
 
 def build_fig4(out_root: Path):
+    """Fig 5 (slug fig4-ood-divergence): "Labeled Agents Fail Harder
+    Under Shift". Easy-trained state-vector agents evaluated on easy /
+    medium / hard. Two rows:
+      - Top (wider): landed_pct | crashed_pct  (shared y 0-100%)
+      - Bottom (3): thrust_autocorr_lag1 | side_thrust_reversals_per_step
+                    | thrust_duty_cycle (independent y; bounded ones use 0-1)
+    Each panel: connected lines + markers + SE errorbars + per-seed dots.
+    """
     fig_dir = out_root / "fig4-ood-divergence"
     sources = [
-        ("easy", "parametric-vs-behavioral-v2-2026-05-13", "full-variation-easy"),
-        ("medium", "ood-generalization-medium-2026-05-13",
-         "full-variation-easy-trained-on-medium"),
-        ("hard", "ood-generalization-hard-2026-05-13",
-         "full-variation-easy-trained-on-hard"),
+        ("easy",   f"parametric-vs-behavioral-v2-{DATE_TAG}",
+                   "full-variation-easy"),
+        ("medium", f"ood-generalization-medium-{DATE_TAG}",
+                   "full-variation-easy-trained-on-medium"),
+        ("hard",   f"ood-generalization-hard-{DATE_TAG}",
+                   "full-variation-easy-trained-on-hard"),
+    ]
+    metrics = [
+        "landed_pct", "crashed_pct",
+        "thrust_autocorr_lag1",
+        "side_thrust_reversals_per_step",
+        "thrust_duty_cycle",
     ]
 
     rows_summary = []
@@ -1054,25 +1069,27 @@ def build_fig4(out_root: Path):
     for eval_profile, name, comp in sources:
         df = load_metrics_csv(cross_config_path(name) / comp / "metrics_by_variant.csv")
         stats = load_stat_tests(name, comp)
-        for metric in ["landed_pct", "crashed_pct"]:
+        for metric in metrics:
             summ = variant_summary(df, metric)
             ps = per_seed_means(df, metric)
             for v in ["labeled", "blind"]:
                 r = summ[summ["variant"] == v].iloc[0]
                 rows_summary.append({
                     "eval": eval_profile, "variant": v, "metric": metric,
-                    "mean": r["mean"], "se": r["se"], "std": r["std"], "n": int(r["n"]),
+                    "mean": r["mean"], "se": r["se"], "std": r["std"],
+                    "n": int(r["n"]),
                 })
             for _, r in ps.iterrows():
-                rows_per_seed.append({"eval": eval_profile, "variant": r["variant"],
+                rows_per_seed.append({"eval": eval_profile,
+                                      "variant": r["variant"],
                                       "metric": metric, "value": r[metric]})
             p, d = lookup_pvalue_d(stats, metric)
             lab = summ[summ["variant"] == "labeled"].iloc[0]
             bli = summ[summ["variant"] == "blind"].iloc[0]
             md_rows.append([
-                eval_profile, METRIC_LABELS[metric],
-                f"{fmt(lab['mean'], 1)} ± {fmt(lab['se'], 1)}",
-                f"{fmt(bli['mean'], 1)} ± {fmt(bli['se'], 1)}",
+                eval_profile, METRIC_LABELS.get(metric, metric),
+                f"{fmt(lab['mean'], 3)} ± {fmt(lab['se'], 3)}",
+                f"{fmt(bli['mean'], 3)} ± {fmt(bli['se'], 3)}",
                 fmt(p, 4), fmt(d, 2),
             ])
             long_rows.append({
@@ -1085,27 +1102,93 @@ def build_fig4(out_root: Path):
     df_summary = pd.DataFrame(rows_summary)
     df_per_seed = pd.DataFrame(rows_per_seed)
 
-    fig, (ax_land, ax_crash) = plt.subplots(1, 2, figsize=FIG_SIZE_OOD, dpi=DPI,
-                                            sharex=True)
+    # Layout: 2 rows. Top row: ONE wide outcome panel (landed + crashed,
+    # 4 lines). Bottom row: 3 behavioral panels.
+    fig = plt.figure(figsize=(13.5, 8.0), dpi=DPI, constrained_layout=True)
+    gs = fig.add_gridspec(2, 6, hspace=0.15)
+    ax_land    = fig.add_subplot(gs[0, 0:3])
+    ax_crash   = fig.add_subplot(gs[0, 3:6])
+    ax_ac      = fig.add_subplot(gs[1, 0:2])
+    ax_rev     = fig.add_subplot(gs[1, 2:4])
+    ax_duty    = fig.add_subplot(gs[1, 4:6])
+
     profiles = ["easy", "medium", "hard"]
     x = np.arange(len(profiles))
-    for ax, metric, ylabel in [
-        (ax_land, "landed_pct", "Landing rate (%)"),
-        (ax_crash, "crashed_pct", "Crash rate (%)"),
-    ]:
+
+    # --- Top: two outcome panels (landed, crashed), shared y 0-100% ---
+    outcome_panel_specs = [
+        (ax_land,  "landed_pct",  "Landing rate"),
+        (ax_crash, "crashed_pct", "Crash rate"),
+    ]
+    for ax, metric, title in outcome_panel_specs:
         for variant in ["labeled", "blind"]:
             sub = df_summary[
-                (df_summary["variant"] == variant) & (df_summary["metric"] == metric)
+                (df_summary["variant"] == variant)
+                & (df_summary["metric"] == metric)
+            ].set_index("eval").loc[profiles]
+            ax.errorbar(
+                x, sub["mean"], yerr=sub["se"],
+                marker="o", capsize=4, color=COLORS[variant],
+                linewidth=2.2, markersize=7, label=variant.capitalize(),
+            )
+            for i, prof in enumerate(profiles):
+                vals = df_per_seed[
+                    (df_per_seed["eval"] == prof)
+                    & (df_per_seed["variant"] == variant)
+                    & (df_per_seed["metric"] == metric)
+                ]["value"].values
+                rng = np.random.RandomState(hash((variant, metric, prof)) & 0xFFFF)
+                jitter = rng.uniform(-0.08, 0.08, size=len(vals))
+                ax.scatter(
+                    np.full_like(vals, x[i], dtype=float) + jitter, vals,
+                    s=14, color="white", edgecolor=COLORS[variant],
+                    linewidth=0.7, zorder=3, alpha=0.95)
+        ax.set_xticks(x)
+        ax.set_xticklabels(profiles)
+        ax.set_ylabel("% of episodes")
+        ax.set_ylim(0, 100)
+        ax.set_title(title, fontsize=11, pad=10)
+        ax.yaxis.grid(True, alpha=0.25, linestyle="-", linewidth=0.5)
+        ax.set_axisbelow(True)
+
+    # Single shared figure-level legend (Blind / Labeled), top-right.
+    from matplotlib.lines import Line2D
+    legend_handles = [
+        Line2D([0], [0], color=COLORS["blind"], marker="o",
+               linewidth=2.2, markersize=7, label="Blind"),
+        Line2D([0], [0], color=COLORS["labeled"], marker="o",
+               linewidth=2.2, markersize=7, label="Labeled"),
+    ]
+    fig.legend(handles=legend_handles, loc="upper right", frameon=False,
+               fontsize=10, bbox_to_anchor=(0.99, 0.97))
+
+    # --- Bottom: 3 behavioral panels ---
+    panel_specs = [
+        (ax_ac,   "thrust_autocorr_lag1",
+         "Thrust autocorrelation",
+         "lag-1 autocorrelation",      (0, 1)),
+        (ax_rev,  "side_thrust_reversals_per_step",
+         "Side-thrust reversals",
+         "events per step",            None),
+        (ax_duty, "thrust_duty_cycle",
+         "Thrust duty cycle",
+         "fraction of steps on",       (0, 1)),
+    ]
+    for ax, metric, title, ylabel, ylim in panel_specs:
+        for variant in ["labeled", "blind"]:
+            sub = df_summary[
+                (df_summary["variant"] == variant)
+                & (df_summary["metric"] == metric)
             ].set_index("eval").loc[profiles]
             ax.errorbar(
                 x, sub["mean"], yerr=sub["se"],
                 marker="o", capsize=4, color=COLORS[variant],
                 linewidth=2.2, markersize=7, label=variant,
             )
-            # seed dots
             for i, prof in enumerate(profiles):
                 vals = df_per_seed[
-                    (df_per_seed["eval"] == prof) & (df_per_seed["variant"] == variant)
+                    (df_per_seed["eval"] == prof)
+                    & (df_per_seed["variant"] == variant)
                     & (df_per_seed["metric"] == metric)
                 ]["value"].values
                 rng = np.random.RandomState(hash((variant, metric, prof)) & 0xFFFF)
@@ -1115,41 +1198,54 @@ def build_fig4(out_root: Path):
                            linewidth=0.7, zorder=3, alpha=0.95)
         ax.set_xticks(x)
         ax.set_xticklabels(profiles)
-        ax.set_xlabel("Evaluation profile")
         ax.set_ylabel(ylabel)
-        ax.set_ylim(0, 100)
+        ax.set_title(title, fontsize=11, pad=10)
+        if ylim is not None:
+            ax.set_ylim(*ylim)
+        else:
+            ax.set_ylim(bottom=0)
         ax.yaxis.grid(True, alpha=0.25, linestyle="-", linewidth=0.5)
         ax.set_axisbelow(True)
-        ax.legend(frameon=False, fontsize=9)
 
-    fig.suptitle("Out-of-distribution divergence: easy-trained state-vector "
-                 "agents evaluated across profiles",
-                 fontsize=12, fontweight="bold", y=1.02)
-    fig.tight_layout()
+    fig.suptitle(
+        r"$\bf{Labeled\ Agents\ Fail\ Harder\ Under\ Shift}$" "\n"
+        "\n"
+        "Easy-trained agents evaluated on easy / medium / hard"
+        "\n ",
+        fontsize=14, linespacing=1.4,
+    )
+    fig.text(0.5, -0.01,
+             "lines = mean across N=10 seeds; bars = ±SE across seeds; "
+             "open circles = per-seed means",
+             ha="center", va="top", fontsize=9, color="#555")
+
     save_figure(fig, fig_dir, "fig4-ood-divergence")
 
     md = (
-        "# Fig 4. State-vector out-of-distribution divergence\n\n"
-        "Easy-trained labeled and blind agents evaluated on easy / medium / hard. "
-        "Sources: easy column from `parametric-vs-behavioral-v2-2026-05-13`, "
-        "medium and hard from `ood-generalization-{medium,hard}-2026-05-13`. "
+        "# Fig 5. State-vector out-of-distribution divergence "
+        "(slug: fig4-ood-divergence)\n\n"
+        "Easy-trained labeled and blind agents evaluated on easy / medium "
+        "/ hard. Sources: easy from "
+        f"`parametric-vs-behavioral-v2-{DATE_TAG}`, medium and hard from "
+        f"`ood-generalization-{{medium,hard}}-{DATE_TAG}`. "
         "N=10 seeds per variant.\n\n"
     )
     md += md_table(
-        ["Eval profile", "Metric", "Labeled (mean ± SE)", "Blind (mean ± SE)",
-         "p", "Cohen's d"],
+        ["Eval profile", "Metric", "Labeled (mean ± SE)",
+         "Blind (mean ± SE)", "p", "Cohen's d"],
         md_rows,
     )
     save_numbers(
         fig_dir, pd.DataFrame(long_rows), md,
         {
             "figure": "fig4",
-            "title": "State-vector out-of-distribution divergence",
+            "title": "Labeled Agents Fail Harder Under Shift",
             "sources": [
-                {"eval": e, "csv": str(cross_config_path(n) / c / "metrics_by_variant.csv")}
+                {"eval": e,
+                 "csv": str(cross_config_path(n) / c / "metrics_by_variant.csv")}
                 for e, n, c in sources
             ],
-            "metrics": ["landed_pct", "crashed_pct"],
+            "metrics": metrics,
             "n_seeds_per_variant": 10,
         },
     )
@@ -1405,10 +1501,8 @@ def wrap_overlay(out_root: Path):
          "State-vector trajectory overlay: full-variation easy (blind vs labeled)",
          "50 trajectories per condition, time-shaded color, with per-episode "
          "thrust-action staircases. Outcome triangles: green = landed, red = failed."),
-        (REVERSAL_TIME_SRC, "fig-reversal-rate-over-time",
-         "Reversal rate over normalized trajectory time (3 scenarios × main/lateral/any)",
-         "Per-bin mean ± SE across N=100 episodes per condition. Rows: "
-         "easy-ID / easy-OOD-medium / medium-ID. Columns: any / main / lateral reversals."),
+        # fig-reversal-rate-over-time is now produced by build_fig_reversal_time
+        # from cross-config dirs with per-seed aggregation.
     ]:
         if not src.exists():
             print(f"  SKIP: {src} not found")
@@ -1982,6 +2076,365 @@ def build_overlay_b_bodyworld(out_root: Path, seed: int = 0):
         }, indent=2))
 
 
+def _per_episode_binned_rates(eps, n_bins: int, kind: str) -> np.ndarray:
+    """Per-episode per-bin reversal rate (shape: (n_eps, n_bins)). Episodes
+    shorter than n_bins are dropped (not zero-filled, to avoid downward bias
+    on the per-bin mean)."""
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from reversal_rate_over_time import reversal_mask
+    out = []
+    for a, _, _ in eps:
+        T = len(a)
+        if T < n_bins:
+            continue
+        rev = reversal_mask(a, kind=kind)
+        bin_ids = (np.arange(T) * n_bins // T).clip(0, n_bins - 1)
+        row = np.zeros(n_bins)
+        for b in range(n_bins):
+            mask = bin_ids == b
+            if mask.any():
+                row[b] = rev[mask].mean()
+        out.append(row)
+    if not out:
+        return np.zeros((0, n_bins))
+    return np.stack(out, axis=0)
+
+
+def _load_per_seed_reversal_curves(csv_path: Path, n_bins: int,
+                                   n_eps_per_seed: int) -> dict:
+    """For a cross-config CSV, return
+        {variant: {"any": (n_seeds, n_bins),
+                   "main": ..., "lateral": ...,
+                   "n_seeds": int}}.
+    Each row of the (n_seeds, n_bins) matrix is one seed's per-bin mean
+    rate across that seed's ~n_eps_per_seed episodes. The plot then takes
+    mean ± SE across these per-seed means (SE = std/sqrt(n_seeds)).
+    """
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from reversal_rate_over_time import load_actions
+    df = pd.read_csv(csv_path)
+    out: dict = {}
+    for variant, g in df.groupby("variant"):
+        per_seed_rows = {k: [] for k in ("any", "main", "lateral")}
+        seeds = []
+        for seed, gs in g.groupby("seed"):
+            traj_dir = Path(gs["npz_path"].iloc[0]).parent
+            eps = load_actions(traj_dir, n=n_eps_per_seed)
+            if not eps:
+                continue
+            seeds.append(int(seed))
+            for kind in per_seed_rows:
+                mat = _per_episode_binned_rates(eps, n_bins, kind)
+                per_seed_rows[kind].append(mat.mean(axis=0))
+        entry = {"n_seeds": len(seeds)}
+        for kind in per_seed_rows:
+            if per_seed_rows[kind]:
+                entry[kind] = np.stack(per_seed_rows[kind], axis=0)
+            else:
+                entry[kind] = np.zeros((0, n_bins))
+        out[str(variant)] = entry
+    return out
+
+
+def _plot_reversal_time_row(axes_row, per_seed_curves: dict, n_bins: int,
+                            show_xlabel: bool = False,
+                            ylabel_tag: str | None = None,
+                            show_legend: bool = False,
+                            ylim: tuple = (0.0, 0.6)):
+    """One row (3 cols: any/main/lateral). Bold aggregate mean line + SE
+    band pooled across all episodes (pooled across all seeds × episodes;
+    each episode contributes one per-bin sample). SE = std / sqrt(N_eps).
+    """
+    colors = {"blind": "#ff7f0e", "labeled": "#1f77b4"}
+    x = (np.arange(n_bins) + 0.5) / n_bins
+    for col, kind in enumerate(("any", "main", "lateral")):
+        ax = axes_row[col]
+        for variant in ("blind", "labeled"):
+            entry = per_seed_curves.get(variant)
+            if entry is None or entry[kind].shape[0] == 0:
+                continue
+            color = colors[variant]
+            mat = entry[kind]  # (n_seeds, n_bins)
+            mean = mat.mean(axis=0)
+            se = mat.std(axis=0, ddof=1) / np.sqrt(mat.shape[0])
+            ax.fill_between(x, mean - se, mean + se, color=color, alpha=0.22,
+                            linewidth=0, zorder=2)
+            label = variant.capitalize() if (col == 0 and show_legend) else None
+            ax.plot(x, mean, color=color, linewidth=2.4,
+                    label=label, zorder=5)
+        ax.set_xlim(0, 1)
+        ax.set_ylim(*ylim)
+        ax.grid(alpha=0.25)
+        ax.set_axisbelow(True)
+        if show_xlabel:
+            ax.set_xlabel("normalized trajectory time  (0 = start, 1 = end)",
+                          fontsize=9)
+    label_text = (f"{ylabel_tag}\nreversal rate (per step)"
+                  if ylabel_tag else "reversal rate (per step)")
+    axes_row[0].set_ylabel(label_text, fontsize=10)
+    if show_legend:
+        axes_row[0].legend(frameon=False, fontsize=9, loc="upper right")
+
+
+def build_fig_reversal_time(out_root: Path, seed: int = 0):
+    """Fig 4: Reversal Rate Over Normalized Trajectory Time.
+
+    Produces both:
+      - Option A (main): 1x3 grid, full-variation easy-ID only.
+        "Main-Thrust Correction Persists Through Descent"
+      - Option B (supplementary): 4x3 grid, easy-ID / medium-ID /
+        easy-OOD-medium / easy-OOD-hard. "Controller Timing Changes Under
+        Shift"
+
+    Aggregation: per-(variant, seed) curve = per-bin mean reversal rate
+    across that seed's episodes. The figure shows thin pale per-seed
+    curves plus a bold aggregate mean line across N=10 seeds. No SE band
+    -- the per-seed curves are the error display.
+    """
+    fig_dir = out_root / "fig-reversal-rate-over-time"
+    fig_dir.mkdir(parents=True, exist_ok=True)
+
+    n_bins = 20
+    n_eps_per_seed = 200
+    kind_titles = ("Any reversal", "Main-thrust transition",
+                   "Lateral transition")
+
+    # ---- Option A: 1x3 easy-ID only ----
+    csv_a = BD_SCENARIOS["easy-ID"]
+    if not csv_a.exists():
+        print(f"  ABORT: {csv_a} missing")
+        return
+    print(f"  loading easy-ID curves from {csv_a.parent.name}/{csv_a.name}")
+    curves_a = _load_per_seed_reversal_curves(csv_a, n_bins, n_eps_per_seed)
+
+    fig, axes = plt.subplots(1, 3, figsize=(13, 5.8), dpi=150,
+                             constrained_layout=True, sharex=True)
+    _plot_reversal_time_row(axes, curves_a, n_bins,
+                            show_xlabel=True, show_legend=True,
+                            ylabel_tag="full-variation easy-ID")
+    for col, t in enumerate(kind_titles):
+        axes[col].set_title(t, fontsize=10, pad=10)
+    fig.suptitle(
+        r"$\bf{Main\text{-}Thrust\ Correction\ Persists\ Through\ Descent}$" "\n"
+        "\n"
+        "Reversal rate over normalized trajectory time "
+        "(full-variation easy-ID)"
+        "\n ",
+        fontsize=14, linespacing=1.4,
+    )
+    fig.text(0.5, -0.02,
+             "line = mean across N=10 seeds; "
+             "band = ±SE across seeds",
+             ha="center", va="top", fontsize=9, color="#555")
+    out_a = fig_dir / "fig-reversal-rate-over-time-easy-id.png"
+    fig.savefig(out_a, bbox_inches="tight")
+    fig.savefig(out_a.with_suffix(".svg"), bbox_inches="tight")
+    plt.close(fig)
+    print(f"  wrote: {out_a}")
+
+    # ---- Option B: 4x3 ID/OOD grid ----
+    rows_b = [
+        ("easy-ID",         "full-variation easy-ID"),
+        ("medium-ID",       "full-variation medium-ID"),
+        ("easy-OOD-medium", "easy-trained, OOD medium"),
+        ("easy-OOD-hard",   "easy-trained, OOD hard"),
+    ]
+    all_curves = {"easy-ID": curves_a}
+    for tag, _ in rows_b:
+        if tag in all_curves:
+            continue
+        csv = BD_SCENARIOS.get(tag)
+        if csv is None or not csv.exists():
+            print(f"  SKIP {tag}: csv missing")
+            all_curves[tag] = {}
+            continue
+        print(f"  loading {tag} curves from {csv.parent.name}/{csv.name}")
+        all_curves[tag] = _load_per_seed_reversal_curves(
+            csv, n_bins, n_eps_per_seed)
+
+    fig, axes = plt.subplots(len(rows_b), 3, figsize=(13, 3.0 * len(rows_b)),
+                             dpi=150, constrained_layout=True, sharex=True)
+    for r, (tag, ylabel) in enumerate(rows_b):
+        _plot_reversal_time_row(
+            axes[r], all_curves[tag], n_bins,
+            show_xlabel=(r == len(rows_b) - 1),
+            ylabel_tag=ylabel,
+            show_legend=(r == 0),
+        )
+        if r == 0:
+            for col, t in enumerate(kind_titles):
+                axes[r, col].set_title(t, fontsize=10)
+    fig.suptitle(
+        r"$\bf{Controller\ Timing\ Changes\ Under\ Shift}$" "\n"
+        "\n"
+        "Reversal rate over normalized trajectory time, ID vs OOD"
+        "\n ",
+        fontsize=14, linespacing=1.4,
+    )
+    fig.text(0.5, -0.01,
+             "line = mean across N=10 seeds; "
+             "band = ±SE across seeds",
+             ha="center", va="top", fontsize=9, color="#555")
+    out_b = fig_dir / "fig-reversal-rate-over-time-id-ood-grid.png"
+    fig.savefig(out_b, bbox_inches="tight")
+    fig.savefig(out_b.with_suffix(".svg"), bbox_inches="tight")
+    plt.close(fig)
+    print(f"  wrote: {out_b}")
+
+    (fig_dir / "metadata.json").write_text(json.dumps({
+        "figure": "fig-reversal-rate-over-time",
+        "option_A": {
+            "title": "Main-Thrust Correction Persists Through Descent",
+            "scenarios": ["easy-ID"],
+            "source_csv": str(BD_SCENARIOS["easy-ID"]),
+            "image": str(out_a),
+        },
+        "option_B": {
+            "title": "Controller Timing Changes Under Shift",
+            "scenarios": [t for t, _ in rows_b],
+            "sources": {t: str(BD_SCENARIOS[t]) for t, _ in rows_b
+                        if t in BD_SCENARIOS},
+            "image": str(out_b),
+        },
+        "n_bins": n_bins,
+        "max_episodes_per_seed": n_eps_per_seed,
+        "underlying_script": "scripts/viz/reversal_rate_over_time.py",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }, indent=2))
+
+
+def build_overlay_corrupt(out_root: Path, seed: int = 0):
+    """6b. Label-corruption trajectory companion.
+
+    For full-variation-easy, produces three V_BD overlays: clean labeled vs
+    each of {world-zeroed, body-zeroed, all-zeroed} labels. The clean column
+    is the same seed's `trajectories/` sibling of the corrupted run, so the
+    contrast is honestly within-seed.
+
+    Median strategy only (5b lesson: extreme/cherry-picked variants
+    over-emphasize degenerate "did very little" episodes when both columns
+    are smooth controllers, which they likely are here — see Fig 3 autocorr).
+    """
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from trajectory_overlay_variants import pick_seed_dirs, render_scenario_bd
+
+    fig_dir = out_root / "fig-overlay-corrupt"
+    fig_dir.mkdir(parents=True, exist_ok=True)
+    if not BACKDROP_RGB.exists():
+        print(f"  ABORT: backdrop {BACKDROP_RGB} missing")
+        return
+
+    name = f"body-vs-world-corruption-{DATE_TAG}"
+    comp = "full-variation-easy"
+    csv_path = cross_config_path(name) / comp / "metrics_by_variant.csv"
+    if not csv_path.exists():
+        print(f"  ABORT: {csv_path} missing")
+        return
+
+    modes = [
+        ("world-zeroed", "labeled-world-zeroed", r"World\text{-}zeroed\ labels"),
+        ("body-zeroed",  "labeled-body-zeroed",  r"Body\text{-}zeroed\ labels"),
+        ("all-zeroed",   "labeled-zeroed",       r"All\text{-}zeroed\ labels"),
+    ]
+    records = []
+    for slug, variant, right_title_tex in modes:
+        # pick_seed_dirs returns {"blind": ..., "labeled": ...}. We repurpose:
+        # "blind" role = clean labeled; "labeled" role = corrupted variant.
+        # Median strategy picks the seed whose per-seed mean is closest to
+        # the variant mean (representative seed).
+        picks = pick_seed_dirs(
+            csv_path, strategy="median",
+            blind_variant="labeled",
+            labeled_variant=variant,
+        )
+        corrupt_dir = picks["labeled"]["traj_dir"]
+        # Force clean baseline to be the same seed's `trajectories/` sibling
+        # of the corrupted dir (honest within-seed contrast).
+        clean_dir = corrupt_dir.parent / "trajectories"
+        if not clean_dir.is_dir():
+            print(f"  SKIP {slug}: clean sibling {clean_dir} missing")
+            continue
+
+        out_png = fig_dir / f"{slug}_median.png"
+        titles = (r"Clean\ labeled", right_title_tex)
+        suptitle = (
+            r"$\bf{Wrong\ Labels,\ Same\ Controller\ Style}$" "\n"
+            "\n"
+            f"Labeled agent: clean labels vs {slug} labels "
+            "(full-variation easy)\n"
+            f"representative seed (s{picks['labeled']['seed']}), "
+            "50 random episodes per column"
+        )
+        try:
+            meta = render_scenario_bd(
+                f"corrupt-{slug}-median",
+                clean_dir, corrupt_dir,
+                BACKDROP_RGB, out_png, seed=seed,
+                titles=titles, suptitle=suptitle,
+            )
+        except Exception as e:
+            print(f"  FAIL {slug}: {e}")
+            continue
+        records.append({
+            "artifact": "vbd_corrupt",
+            "mode": slug, "strategy": "median",
+            "comp": comp,
+            "corrupt_variant": variant,
+            "corrupt_seed": picks["labeled"]["seed"],
+            "corrupt_metric": picks["labeled"]["metric_value"],
+            "clean_traj_dir": str(clean_dir),
+            "corrupt_traj_dir": str(corrupt_dir),
+            "n_clean_plotted": meta["n_blind"],
+            "n_corrupt_plotted": meta["n_labeled"],
+            "image": str(out_png),
+        })
+        print(f"  wrote: {out_png}")
+
+    if records:
+        df = pd.DataFrame(records)
+        df.to_csv(fig_dir / "numbers.csv", index=False)
+        md = [
+            "# Fig 6b. Label-corruption trajectory companion",
+            "",
+            f"Source: `{name}/{comp}`.",
+            "",
+            "Artifacts (median strategy, within-seed contrast):",
+            "- `world-zeroed_median.{png,svg}` — clean labels vs world-zeroed labels",
+            "- `body-zeroed_median.{png,svg}`  — clean labels vs body-zeroed labels",
+            "- `all-zeroed_median.{png,svg}`   — clean labels vs all-zeroed labels",
+            "",
+            "Each row picks the representative seed within the corrupted",
+            "variant (per-seed mean closest to variant mean on",
+            "`side_thrust_reversals`); the clean column is that same seed's",
+            "`trajectories/` sibling.",
+            "",
+            "Per the 5b lesson: extreme/cherry-picked variants are not",
+            "produced — when both columns are smooth controllers, the",
+            "extreme picks degenerate into 'did very little' episodes.",
+            "",
+            "| mode | corrupt seed | corrupt sel.metric |",
+            "|---|---|---|",
+        ]
+        for r in records:
+            md.append(f"| {r['mode']} | s{r['corrupt_seed']} | "
+                      f"{r['corrupt_metric']:.1f} |")
+        (fig_dir / "numbers.md").write_text("\n".join(md) + "\n")
+        (fig_dir / "metadata.json").write_text(json.dumps({
+            "figure": "fig-overlay-corrupt",
+            "title": "Wrong Labels, Same Controller Style (trajectory)",
+            "cross_config_dir": str(cross_config_path(name)),
+            "comp": comp,
+            "selection_metric": "side_thrust_reversals",
+            "backdrop_rgb": str(BACKDROP_RGB),
+            "underlying_script": "scripts/viz/trajectory_overlay_variants.py",
+            "rng_seed": seed,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+        }, indent=2))
+
+
 # ====================================================================
 # CLI
 # ====================================================================
@@ -1998,6 +2451,8 @@ BUILDERS = {
     "overlay_bd": build_overlay_bd,
     "overlay_bd_bodyworld": build_overlay_bd_bodyworld,
     "overlay_b_bodyworld": build_overlay_b_bodyworld,
+    "overlay_corrupt": build_overlay_corrupt,
+    "fig_reversal_time": build_fig_reversal_time,
     "overlay_bd_e3": build_overlay_bd_e3,
     "fig5_ood_panel": build_e3_ood_behavioral_panel,
 }
