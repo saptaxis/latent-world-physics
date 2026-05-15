@@ -63,17 +63,18 @@ COLORS = {
 }
 
 # Figure sizes (inches)
-FIG_SIZE_2x2 = (8.0, 7.0)        # Fig 1
-FIG_SIZE_SINGLE = (6.5, 4.2)     # Fig 2
-FIG_SIZE_LADDER = (9.0, 4.8)     # Fig 3
-FIG_SIZE_OOD = (7.0, 4.5)        # Fig 4
-FIG_SIZE_FUSION = (9.0, 4.8)     # Fig 5
+FIG_SIZE_2x2 = (11.0, 8.0)       # Fig 1 (widened from 8x7 to match family)
+FIG_SIZE_SINGLE = (6.5, 4.2)     # Fig 2 (unused; build_fig2 hard-codes 11x4.6)
+FIG_SIZE_LADDER = (11.5, 6.2)    # Fig 3 (matches existing hard-coded value)
+FIG_SIZE_OOD = (13.5, 8.0)       # Fig 4 OOD (matches restyled value)
+FIG_SIZE_FUSION = (11.0, 5.5)    # Fig 5 E3 fusion (widened to family range)
 
-# Typography
+# Typography — canonical sizes referenced by every figure. Per-call
+# fontsize= overrides should be avoided so changes here propagate.
 plt.rcParams.update({
     "font.family": "DejaVu Sans",
     "font.size": 10,
-    "axes.titlesize": 12,
+    "axes.titlesize": 11,
     "axes.labelsize": 10,
     "xtick.labelsize": 9,
     "ytick.labelsize": 9,
@@ -81,6 +82,12 @@ plt.rcParams.update({
     "axes.spines.top": False,
     "axes.spines.right": False,
 })
+
+# Suptitle canonical: applied via explicit `fontsize=SUPTITLE_FONTSIZE,
+# linespacing=SUPTITLE_LINESPACING` since matplotlib's figure.titlesize
+# rcParam doesn't cover `fig.suptitle`.
+SUPTITLE_FONTSIZE = 15
+SUPTITLE_LINESPACING = 1.4
 
 DPI = 300
 
@@ -276,7 +283,7 @@ def bar_with_seed_dots(
     else:
         ax.set_xticks([])
     if title:
-        ax.set_title(title, fontsize=10)
+        ax.set_title(title)
     if ylabel:
         ax.set_ylabel(ylabel)
     ax.yaxis.grid(True, alpha=0.25, linestyle="-", linewidth=0.5)
@@ -315,7 +322,7 @@ def point_with_seed_dots(
     else:
         ax.set_xticks([])
     if title:
-        ax.set_title(title, fontsize=10)
+        ax.set_title(title)
     if ylabel:
         ax.set_ylabel(ylabel)
     ax.yaxis.grid(True, alpha=0.25, linestyle="-", linewidth=0.5)
@@ -366,7 +373,7 @@ def grouped_points(
     ax.set_xticks(x_outer)
     ax.set_xticklabels(groups, fontsize=9)
     if title:
-        ax.set_title(title, fontsize=10)
+        ax.set_title(title)
     if ylabel:
         ax.set_ylabel(ylabel)
     ax.yaxis.grid(True, alpha=0.25, linestyle="-", linewidth=0.5)
@@ -420,7 +427,7 @@ def grouped_bars(
     ax.set_xticks(x_outer)
     ax.set_xticklabels(groups, fontsize=9)
     if title:
-        ax.set_title(title, fontsize=10)
+        ax.set_title(title)
     if ylabel:
         ax.set_ylabel(ylabel)
     ax.yaxis.grid(True, alpha=0.25, linestyle="-", linewidth=0.5)
@@ -575,7 +582,7 @@ def build_fig1(out_root: Path):
         r"$\bf{Same\ Task,\ Different\ Controllers}$" "\n"
         "\n"
         "Strategy split: full-variation easy",
-        fontsize=14, y=1.0, linespacing=1.3,
+        fontsize=SUPTITLE_FONTSIZE, linespacing=SUPTITLE_LINESPACING,
     )
     fig.text(0.5, -0.01,
              "mean ± SE across N=10 seeds, dots = per-seed means",
@@ -712,7 +719,7 @@ def build_fig2(out_root: Path):
         r"$\bf{Body\ Uncertainty\ Changes\ the\ Controller}$" "\n"
         "\n"
         "Body-vs-world behavioral diagnostic: blind vs labeled (easy profile)",
-        fontsize=14, y=1.0, linespacing=1.3,
+        fontsize=SUPTITLE_FONTSIZE, linespacing=SUPTITLE_LINESPACING,
     )
     fig.text(0.5, -0.01,
              "mean ± SE across N=10 seeds, dots = per-seed means",
@@ -976,7 +983,7 @@ def _build_fig3_variant(out_root: Path, autocorr_style: str, out_slug: str):
         r"$\bf{Wrong\ Labels,\ Same\ Controller\ Style}$" "\n"
         "\n"
         "Labeled agent under label corruption (easy profile)",
-        fontsize=14, y=1.0, linespacing=1.3,
+        fontsize=SUPTITLE_FONTSIZE, linespacing=SUPTITLE_LINESPACING,
     )
     fig.text(0.5, -0.02,
              "mean ± SE across N=10 seeds, dots = per-seed means",
@@ -1147,7 +1154,7 @@ def build_fig4(out_root: Path):
         ax.set_xticklabels(profiles)
         ax.set_ylabel("% of episodes")
         ax.set_ylim(0, 100)
-        ax.set_title(title, fontsize=11, pad=10)
+        ax.set_title(title, pad=10)
         ax.yaxis.grid(True, alpha=0.25, linestyle="-", linewidth=0.5)
         ax.set_axisbelow(True)
 
@@ -1199,7 +1206,7 @@ def build_fig4(out_root: Path):
         ax.set_xticks(x)
         ax.set_xticklabels(profiles)
         ax.set_ylabel(ylabel)
-        ax.set_title(title, fontsize=11, pad=10)
+        ax.set_title(title, pad=10)
         if ylim is not None:
             ax.set_ylim(*ylim)
         else:
@@ -1212,7 +1219,7 @@ def build_fig4(out_root: Path):
         "\n"
         "Easy-trained agents evaluated on easy / medium / hard"
         "\n ",
-        fontsize=14, linespacing=1.4,
+        fontsize=SUPTITLE_FONTSIZE, linespacing=SUPTITLE_LINESPACING,
     )
     fig.text(0.5, -0.01,
              "lines = mean across N=10 seeds; bars = ±SE across seeds; "
@@ -1258,131 +1265,199 @@ def build_fig4(out_root: Path):
 
 
 def build_fig5(out_root: Path):
-    """Two panels: ID landed% (frozen only — blind/raw/branch),
-    Medium OOD landed% (same 3 conditions), with secondary strip of reversals."""
+    """Fig 6 (slug fig5-fusion-gradient): "Stronger Fusion, Sharper Collapse".
+
+    Visual frozen agents (blind, raw, branch) on ID and medium-OOD. Three
+    panels:
+      Top: landed_pct (lines, 3 variants × {ID, OOD-medium}) | crashed_pct
+      Bot: side_thrust_reversals_per_step (ID-only, 3 bars)
+
+    Brief calls out: don't use OOD reversals -- in OOD, branch can collapse
+    toward zero because the agent crashes before acting, confounding
+    controller style with episode truncation.
+    """
     fig_dir = out_root / "fig5-fusion-gradient"
     NETS = DEFAULT_NETS
-    # ID source: e3-n3-frozen-only-final (only the 3 frozen conditions)
-    id_csv = NETS / "analysis/cross-config/e3-n3-frozen-only-final/frozen-only-final/metrics_by_variant.csv"
-    id_stats = NETS / "analysis/cross-config/e3-n3-frozen-only-final/stat_tests.json"
-    # OOD source: e3-n3-all-6-final-ood-medium (filtered to frozen rows)
-    ood_csv = NETS / "analysis/cross-config/e3-n3-all-6-final-ood-medium/all-6-final-ood-medium/metrics_by_variant.csv"
-    ood_stats = NETS / "analysis/cross-config/e3-n3-all-6-final-ood-medium/stat_tests.json"
+    id_csv = (NETS / "analysis/cross-config"
+              / f"e3-n3-all-6-final-{DATE_TAG}" / "all-6-final"
+              / "metrics_by_variant.csv")
+    ood_csv = (NETS / "analysis/cross-config"
+               / f"e3-n3-all-6-final-ood-medium-{DATE_TAG}"
+               / "all-6-final-ood-medium" / "metrics_by_variant.csv")
 
-    df_id = load_metrics_csv(id_csv)
-    df_ood = load_metrics_csv(ood_csv)
-    df_ood = df_ood[df_ood["variant"].str.endswith("-frozen")].copy()
+    df_id_all  = load_metrics_csv(id_csv)
+    df_ood_all = load_metrics_csv(ood_csv)
+    df_id  = df_id_all[df_id_all["variant"].str.endswith("-frozen")].copy()
+    df_ood = df_ood_all[df_ood_all["variant"].str.endswith("-frozen")].copy()
 
     conditions = ["blind-frozen", "raw-frozen", "branch-frozen"]
+    public_label = {
+        "blind-frozen":  "Blind",
+        "raw-frozen":    "Labeled, raw fusion",
+        "branch-frozen": "Labeled, branch fusion",
+    }
     cond_color = {
-        "blind-frozen": COLORS["blind-visual"],
-        "raw-frozen": COLORS["raw"],
+        "blind-frozen":  COLORS["blind-visual"],
+        "raw-frozen":    COLORS["raw"],
         "branch-frozen": COLORS["branch"],
     }
 
+    # ----- Figure layout -----
+    fig = plt.figure(figsize=(13.0, 10.0), dpi=DPI, constrained_layout=True)
+    gs = fig.add_gridspec(2, 6, height_ratios=[1.4, 1.0], hspace=0.10)
+    ax_land  = fig.add_subplot(gs[0, 0:3])
+    ax_crash = fig.add_subplot(gs[0, 3:6])
+    ax_rev   = fig.add_subplot(gs[1, 0:3])
+    ax_ac    = fig.add_subplot(gs[1, 3:6])
+
+    # ----- Top row: outcome lines across [ID, OOD-medium] -----
+    eval_labels = ["Easy physics\n(ID)", "Medium physics\n(OOD)"]
+    x = np.arange(len(eval_labels))
+    panel_specs = [
+        (ax_land,  "landed_pct",  "Landing rate", "% of episodes"),
+        (ax_crash, "crashed_pct", "Crash rate",   "% of episodes"),
+    ]
     long_rows = []
-    md_rows_landed = []
-    md_rows_rev = []
+    md_rows = []
 
-    fig = plt.figure(figsize=FIG_SIZE_FUSION, dpi=DPI)
-    gs = fig.add_gridspec(2, 2, height_ratios=[2.5, 1], hspace=0.45, wspace=0.2)
+    for ax, metric, title, ylabel in panel_specs:
+        for variant in conditions:
+            means, ses, per_seed_vals = [], [], []
+            for df in (df_id, df_ood):
+                summ = variant_summary(df, metric).set_index("variant")
+                ps   = per_seed_means(df, metric)
+                means.append(float(summ.loc[variant, "mean"]))
+                ses.append(float(summ.loc[variant, "se"]))
+                per_seed_vals.append(
+                    ps[ps["variant"] == variant][metric].values)
+            ax.errorbar(x, means, yerr=ses, marker="o", capsize=4,
+                        color=cond_color[variant], linewidth=2.4,
+                        markersize=8, label=public_label[variant])
+            for i, vals in enumerate(per_seed_vals):
+                jitter = (np.random.RandomState(
+                    hash((variant, metric, i)) & 0xFFFF)
+                          .uniform(-0.04, 0.04, size=len(vals)))
+                ax.scatter(np.full_like(vals, x[i], dtype=float) + jitter,
+                           vals, s=18, color="white",
+                           edgecolor=cond_color[variant], linewidth=0.8,
+                           zorder=3, alpha=0.95)
+                long_rows.append({
+                    "figure": "fig5", "panel": metric,
+                    "eval": "id" if i == 0 else "ood",
+                    "variant": variant,
+                    "mean": means[i], "se": ses[i],
+                })
+                md_rows.append([
+                    "ID" if i == 0 else "OOD-medium",
+                    title, public_label[variant],
+                    f"{fmt(means[i], 1)} ± {fmt(ses[i], 1)}",
+                ])
+        ax.set_xticks(x)
+        ax.set_xticklabels(eval_labels)
+        ax.set_ylabel(ylabel)
+        # Small headroom above 100 so endpoint markers/SE caps aren't
+        # pressed against the top spine.
+        ax.set_ylim(-3, 105)
+        ax.set_title(title, pad=10)
+        ax.yaxis.grid(True, alpha=0.25, linestyle="-", linewidth=0.5)
+        ax.set_axisbelow(True)
+        if metric == "landed_pct":
+            ax.legend(frameon=False, loc="upper right")
 
-    # --- Top row: landed% ID and OOD ---
-    for col, (ax, df, eval_label, src) in enumerate([
-        (fig.add_subplot(gs[0, 0]), df_id, "easy (ID)", "id"),
-        (fig.add_subplot(gs[0, 1]), df_ood, "medium (OOD)", "ood"),
-    ]):
-        summ = variant_summary(df, "landed_pct")
-        ps = per_seed_means(df, "landed_pct")
-        summ = summ.set_index("variant").loc[conditions].reset_index()
+    # ----- Bottom: ID-only controller-style strips -----
+    color_pub = {public_label[k]: v for k, v in cond_color.items()}
+    strip_specs = [
+        (ax_rev, "side_thrust_reversals_per_step",
+         "Side-thrust reversals (ID only)", "events per step", None),
+        (ax_ac,  "thrust_autocorr_lag1",
+         "Thrust autocorrelation (ID only)",
+         "lag-1 autocorrelation", (0, 1)),
+    ]
+    for ax, metric, title, ylabel, ylim in strip_specs:
+        summ = variant_summary(df_id, metric).set_index("variant")
+        summ_ordered = summ.loc[conditions].reset_index()
+        summ_ordered["variant"] = summ_ordered["variant"].map(public_label)
+        ps = per_seed_means(df_id, metric)
+        ps_renamed = ps.copy()
+        ps_renamed["variant"] = ps_renamed["variant"].map(public_label)
         bar_with_seed_dots(
-            ax, summ, ps, "landed_pct", cond_color,
-            title=f"{eval_label}: landing rate",
-            ylabel="Landing rate (%)",
-            show_xticks=True,
+            ax, summ_ordered, ps_renamed, metric, color_pub,
+            title=title, ylabel=ylabel,
         )
-        ax.set_xticklabels(["blind", "raw", "branch"])
-        ax.set_ylim(0, 100)
+        if ylim is not None:
+            lo, hi = ylim
+            ax.set_ylim(lo, hi + 0.18 * (hi - lo))
+        else:
+            top = float((summ_ordered["mean"] + summ_ordered["se"]).max())
+            ax.set_ylim(0, top * 1.30)
+        # p/d annotation vs blind-frozen baseline (leftmost bar).
+        baseline_vals = ps[ps["variant"] == "blind-frozen"][metric].values
+        bar_x = np.arange(len(conditions)) * 0.6
+        y_lo, y_hi = ax.get_ylim()
+        offset = 0.025 * (y_hi - y_lo)
+        for i, cond in enumerate(conditions):
+            row = summ_ordered.iloc[i]
+            bar_top = float(row["mean"] + row["se"])
+            if cond == "blind-frozen":
+                ax.text(bar_x[i], bar_top + offset, "(baseline)",
+                        ha="center", va="bottom", fontsize=8,
+                        color="#888", style="italic")
+                continue
+            cmp_vals = ps[ps["variant"] == cond][metric].values
+            p, d = _ttest_cohens_d_arrays(baseline_vals, cmp_vals)
+            if p is None:
+                continue
+            txt = (f"p={p:.3f}\nd={d:.2f}"
+                   if d is not None else f"p={p:.3f}")
+            ax.text(bar_x[i], bar_top + offset, txt,
+                    ha="center", va="bottom", fontsize=8, color="#444")
         for v in conditions:
-            r = summ[summ["variant"] == v].iloc[0]
+            r = summ.loc[v]
             long_rows.append({
-                "figure": "fig5", "panel": "landed_pct", "eval": src,
-                "variant": v, "mean": r["mean"], "se": r["se"],
-                "std": r["std"], "n_seeds": int(r["n"]),
+                "figure": "fig5", "panel": metric, "eval": "id",
+                "variant": v, "mean": float(r["mean"]),
+                "se": float(r["se"]),
             })
-            md_rows_landed.append([
-                eval_label, v.replace("-frozen", ""),
-                f"{fmt(r['mean'], 1)} ± {fmt(r['se'], 1)}", int(r["n"]),
-            ])
-
-    # --- Bottom row: side_thrust_reversals strip (ID and OOD) ---
-    # Both strips share a y-axis so the reader can read OOD as a vertical
-    # drop from the ID values directly above. Without a shared range,
-    # matplotlib autoscales each strip independently and the visual
-    # "ID → OOD" comparison breaks.
-    metric_strip = "side_thrust_reversals"
-    id_summ = variant_summary(df_id, metric_strip).set_index("variant").loc[conditions]
-    ood_summ = variant_summary(df_ood, metric_strip).set_index("variant").loc[conditions]
-    rev_top = float(max((id_summ["mean"] + id_summ["se"]).max(),
-                        (ood_summ["mean"] + ood_summ["se"]).max())) * 1.18
-    ax_rev_id = fig.add_subplot(gs[1, 0])
-    ax_rev_ood = fig.add_subplot(gs[1, 1], sharey=ax_rev_id)
-    for ax, df, eval_label, src in [
-        (ax_rev_id, df_id, "easy (ID)", "id"),
-        (ax_rev_ood, df_ood, "medium (OOD)", "ood"),
-    ]:
-        summ = variant_summary(df, metric_strip)
-        ps = per_seed_means(df, metric_strip)
-        summ = summ.set_index("variant").loc[conditions].reset_index()
-        bar_with_seed_dots(
-            ax, summ, ps, metric_strip, cond_color,
-            title=None,
-            ylabel="Reversals/ep" if ax is ax_rev_id else None,
-            show_xticks=True,
-        )
-        ax.set_xticklabels(["blind", "raw", "branch"])
-        ax.set_ylim(0, rev_top)
-        for v in conditions:
-            r = summ[summ["variant"] == v].iloc[0]
-            long_rows.append({
-                "figure": "fig5", "panel": "side_thrust_reversals", "eval": src,
-                "variant": v, "mean": r["mean"], "se": r["se"],
-                "std": r["std"], "n_seeds": int(r["n"]),
-            })
-            md_rows_rev.append([
-                eval_label, v.replace("-frozen", ""),
-                f"{fmt(r['mean'], 1)} ± {fmt(r['se'], 1)}", int(r["n"]),
+            md_rows.append([
+                "ID", title.replace(" (ID only)", ""),
+                public_label[v],
+                f"{fmt(r['mean'], 3)} ± {fmt(r['se'], 3)}",
             ])
 
     fig.suptitle(
-        "Visual fusion-strength gradient: blind, raw, branch (frozen encoder, N=3)",
-        fontsize=12, fontweight="bold", y=1.0,
+        r"$\bf{Stronger\ Fusion,\ Sharper\ Collapse}$" "\n"
+        "\n"
+        "Visual frozen agents trained on easy-variation physics, evaluated "
+        "on easy (ID) and medium (OOD)\n"
+        "Blind / raw fusion / branch fusion (N=3 seeds per condition)"
+        "\n ",
+        fontsize=SUPTITLE_FONTSIZE, linespacing=SUPTITLE_LINESPACING,
     )
     save_figure(fig, fig_dir, "fig5-fusion-gradient")
 
     md = (
-        "# Fig 5. Visual fusion-strength gradient\n\n"
-        "Visual frozen agents (blind, raw-fusion, branch-fusion) on easy (ID) and "
-        "medium (OOD). Sources: ID from `e3-n3-frozen-only-final`, OOD from "
-        "`e3-n3-all-6-final-ood-medium` (frozen rows). N=3 seeds.\n\n"
-        "## Landing rate\n\n"
+        "# Fig 6. Stronger Fusion, Sharper Collapse "
+        "(slug: fig5-fusion-gradient)\n\n"
+        "Visual frozen agents (blind, raw-fusion, branch-fusion) on easy "
+        "(ID) and medium-OOD. N=3 seeds per condition.\n\n"
+        f"Sources: ID `e3-n3-all-6-final-{DATE_TAG}/all-6-final`; "
+        f"OOD `e3-n3-all-6-final-ood-medium-{DATE_TAG}/all-6-final-ood-medium`. "
+        "Filtered to `-frozen` rows. Fine-tuned and peak-checkpoint variants "
+        "excluded per writing brief.\n\n"
     )
-    md += md_table(["Eval", "Condition", "Landed % (mean ± SE)", "N"], md_rows_landed)
-    md += "\n## Side-thrust reversals\n\n"
-    md += md_table(["Eval", "Condition", "Reversals/ep (mean ± SE)", "N"], md_rows_rev)
+    md += md_table(["Eval", "Metric", "Variant", "Mean ± SE"], md_rows)
 
     save_numbers(
         fig_dir, pd.DataFrame(long_rows), md,
         {
-            "figure": "fig5",
-            "title": "Visual fusion-strength gradient",
-            "sources": {
-                "id_csv": str(id_csv),
-                "ood_csv": str(ood_csv),
-            },
+            "figure": "fig5-fusion-gradient",
+            "title": "Stronger Fusion, Sharper Collapse",
+            "sources": {"id_csv": str(id_csv), "ood_csv": str(ood_csv)},
             "conditions": conditions,
             "n_seeds_per_variant": 3,
-            "metrics": ["landed_pct", "side_thrust_reversals"],
+            "metrics": ["landed_pct", "crashed_pct",
+                        "side_thrust_reversals_per_step",
+                        "thrust_autocorr_lag1"],
         },
     )
     print(f"  wrote: {fig_dir}/")
@@ -1394,81 +1469,219 @@ def build_fig5(out_root: Path):
 
 
 def build_result4_table(out_root: Path):
-    """Compact comparison: state blind/labeled vs visual frozen/finetuned.
-    Source: e1-blind-vs-labeled-gym-default-128 (state) +
-            matched-enc-all-6-conditions (visual).
-    Metrics: landed_pct, crashed_pct, side_thrust_reversals,
-             side_thrust_autocorr_lag1, thrust_duty_cycle, frac_upright.
+    """Result 4: "With Physics Fixed, Perception Changes Control". State
+    agents (gym-default, fixed physics) vs visual matched-encoder agents.
+
+    The framing is a deliberate null control: under fixed physics, state
+    labels carry no signal, so state-blind and state-labeled converge to
+    near-identical smooth controllers. Visual agents, given the same fixed
+    physics, sit much further toward reactive correction — the shift is
+    caused by perception, not parameter variation.
+
+    Produces both a table (numbers.md) AND a plot
+    (result4-state-vs-visual.{png,svg}).
+
+    Layout (2 rows × 6-col gridspec):
+      Top:    landed_pct | crashed_pct (2 wide panels, shared y 0-100%)
+      Bottom: thrust_autocorr_lag1 | side_thrust_reversals_per_step
+              | frac_upright
+
+    Each panel: 4 grouped bars (state blind / state labeled / visual frozen /
+    visual fine-tuned) with per-seed dots. N=5 seeds per condition.
     """
     fig_dir = out_root / "result4-state-vs-visual"
     NETS = DEFAULT_NETS
-    state_csv = NETS / "analysis/cross-config/e1-blind-vs-labeled-gym-default-128"
-    state_inner = next((p for p in state_csv.iterdir() if p.is_dir()), None)
-    state_df = load_metrics_csv(state_inner / "metrics_by_variant.csv")
-
-    visual_csv = NETS / "analysis/cross-config/matched-enc-all-6-conditions/all-6/metrics_by_variant.csv"
+    state_csv = (NETS / "analysis/cross-config"
+                 / f"e1-blind-vs-labeled-gym-default-128-{DATE_TAG}"
+                 / "e1-blind-vs-labeled-gym-default-128"
+                 / "metrics_by_variant.csv")
+    visual_csv = (NETS / "analysis/cross-config"
+                  / f"matched-enc-all-6-conditions-{DATE_TAG}"
+                  / "all-6" / "metrics_by_variant.csv")
+    state_df = load_metrics_csv(state_csv)
     visual_df = load_metrics_csv(visual_csv)
     # matched-enc has variants {frozen-baseline, finetune-baseline, ...swap variants...}
-    visual_df = visual_df[visual_df["variant"].isin(["frozen-baseline", "finetune-baseline"])].copy()
+    visual_df = visual_df[visual_df["variant"].isin(
+        ["frozen-baseline", "finetune-baseline"])].copy()
 
-    metrics_r4 = [
-        ("landed_pct", "Landing rate (%)"),
-        ("crashed_pct", "Crash rate (%)"),
-        ("side_thrust_reversals", "Side-thrust reversals"),
-        ("side_thrust_autocorr_lag1", "Side-thrust autocorr"),
-        ("thrust_duty_cycle", "Thrust duty cycle"),
-        ("frac_upright", "Fraction upright"),
+    # Public condition labels (used in plot x-ticks AND table columns).
+    COND_STATE_BLIND  = "State,\nblind"
+    COND_STATE_LAB    = "State,\nlabeled"
+    COND_VIS_FROZEN   = "Visual blind,\nfrozen"
+    COND_VIS_FT       = "Visual blind,\nfine-tuned"
+    cond_order = [COND_STATE_BLIND, COND_STATE_LAB,
+                  COND_VIS_FROZEN,  COND_VIS_FT]
+    cond_color = {
+        COND_STATE_BLIND: COLORS["blind"],
+        COND_STATE_LAB:   COLORS["labeled"],
+        COND_VIS_FROZEN:  COLORS["visual-frozen"],
+        COND_VIS_FT:      COLORS["visual-ft"],
+    }
+    source_map = [
+        (state_df,  "blind",             COND_STATE_BLIND),
+        (state_df,  "labeled",           COND_STATE_LAB),
+        (visual_df, "frozen-baseline",   COND_VIS_FROZEN),
+        (visual_df, "finetune-baseline", COND_VIS_FT),
     ]
 
+    metrics_r4 = [
+        ("landed_pct",                     "Landing rate",          "% of episodes",         (0, 100)),
+        # Crash rates here are ~0.8-5.7% — keep zoomed (not 0-100) for legibility.
+        ("crashed_pct",                    "Crash rate",            "% of episodes",         (0, 15)),
+        ("thrust_autocorr_lag1",           "Thrust autocorrelation",
+                                                                    "lag-1 autocorrelation", (0, 1)),
+        ("side_thrust_reversals_per_step", "Side-thrust reversals",
+                                                                    "events per step",       None),
+        ("frac_upright",                   "Fraction upright",      "fraction of steps",     (0, 1)),
+    ]
+
+    # Build a combined long-form per-seed dataframe with public condition
+    # names, then a summary frame, so we can reuse `bar_with_seed_dots`.
+    combined_per_seed = []
+    combined_summary  = []
+    for metric, *_ in metrics_r4:
+        rows_ps, rows_summ = [], []
+        for src_df, src_variant, cond_name in source_map:
+            ps = per_seed_means(src_df, metric)
+            ps = ps[ps["variant"] == src_variant].copy()
+            ps["condition"] = cond_name
+            rows_ps.append(ps[["condition", "seed", metric]])
+            summ = variant_summary(src_df, metric)
+            summ = summ[summ["variant"] == src_variant].copy()
+            summ["condition"] = cond_name
+            rows_summ.append(summ[["condition", "mean", "std", "se", "n"]])
+        ps_df = pd.concat(rows_ps, ignore_index=True)
+        summ_df = pd.concat(rows_summ, ignore_index=True)
+        ps_df["metric"] = metric
+        summ_df["metric"] = metric
+        combined_per_seed.append(ps_df)
+        combined_summary.append(summ_df)
+    per_seed_all = pd.concat(combined_per_seed, ignore_index=True)
+    summary_all  = pd.concat(combined_summary, ignore_index=True)
+
+    # ---------------- Plot ----------------
+    # 2-row layout per the writing brief:
+    #   Top:    landed_pct | crashed_pct (shared y 0-100%)
+    #   Bottom: side-thrust reversals | side-thrust autocorr | frac upright
+    fig = plt.figure(figsize=(13.0, 8.8), dpi=DPI, constrained_layout=True)
+    gs = fig.add_gridspec(2, 6, hspace=0.15)
+    axes_map = {
+        "landed_pct":                     fig.add_subplot(gs[0, 0:3]),
+        "crashed_pct":                    fig.add_subplot(gs[0, 3:6]),
+        "thrust_autocorr_lag1":           fig.add_subplot(gs[1, 0:2]),
+        "side_thrust_reversals_per_step": fig.add_subplot(gs[1, 2:4]),
+        "frac_upright":                   fig.add_subplot(gs[1, 4:6]),
+    }
+
+    for metric, title, ylabel, ylim in metrics_r4:
+        ax = axes_map[metric]
+        # Order summary + per-seed rows by canonical cond order so bars
+        # appear in the expected sequence.
+        ms = summary_all[summary_all["metric"] == metric].copy()
+        ms = ms.set_index("condition").loc[cond_order].reset_index()
+        ms = ms.rename(columns={"condition": "variant"})
+        ps = per_seed_all[per_seed_all["metric"] == metric].rename(
+            columns={"condition": "variant"}).copy()
+        bar_with_seed_dots(ax, ms, ps, metric, cond_color,
+                           title=title, ylabel=ylabel)
+        # Give headroom for the p/d annotation labels above each bar.
+        if ylim is not None:
+            lo, hi = ylim
+            ax.set_ylim(lo, hi + 0.18 * (hi - lo))
+        else:
+            top = float((ms["mean"] + ms["se"]).max())
+            ax.set_ylim(0, top * 1.30)
+
+        # Per-bar p/d vs state-blind (leftmost). Baseline gets a "(baseline)"
+        # label so the convention is explicit.
+        baseline_vals = ps[ps["variant"] == COND_STATE_BLIND][metric].values
+        bar_x = np.arange(len(cond_order)) * 0.6
+        y_lo, y_hi = ax.get_ylim()
+        offset = 0.025 * (y_hi - y_lo)
+        for i, cond in enumerate(cond_order):
+            bar_top = float(
+                ms[ms["variant"] == cond]["mean"].iloc[0]
+                + ms[ms["variant"] == cond]["se"].iloc[0])
+            if cond == COND_STATE_BLIND:
+                ax.text(bar_x[i], bar_top + offset, "(baseline)",
+                        ha="center", va="bottom", fontsize=8,
+                        color="#888", style="italic")
+                continue
+            cmp_vals = ps[ps["variant"] == cond][metric].values
+            p, d = _ttest_cohens_d_arrays(baseline_vals, cmp_vals)
+            if p is None:
+                continue
+            txt = (f"p={p:.3f}\nd={d:.2f}"
+                   if d is not None else f"p={p:.3f}")
+            ax.text(bar_x[i], bar_top + offset, txt,
+                    ha="center", va="bottom", fontsize=8, color="#444")
+
+    fig.suptitle(
+        r"$\bf{With\ Physics\ Fixed,\ Perception\ Changes\ Control}$" "\n"
+        "\n"
+        "Under gym-default (fixed) physics, state labels carry no signal "
+        "and state-blind ≈ state-labeled\n"
+        "Visual-blind agents (no physics labels) shift toward reactive "
+        "correction anyway (N=5 seeds)"
+        "\n ",
+        fontsize=SUPTITLE_FONTSIZE, linespacing=SUPTITLE_LINESPACING,
+    )
+    fig.text(0.5, -0.01,
+             "bars = mean ± SE across seeds; dots = per-seed means",
+             ha="center", va="top", fontsize=9, color="#555")
+    save_figure(fig, fig_dir, "result4-state-vs-visual")
+
+    # ---------------- Table / numbers ----------------
     long_rows = []
-    columns = ["State blind", "State labeled", "Visual frozen", "Visual fine-tuned"]
-    rows = []
-    for m, label in metrics_r4:
-        state_summ = variant_summary(state_df, m).set_index("variant")
-        vis_summ = variant_summary(visual_df, m).set_index("variant")
-        # If frac_upright was not in the state CSV (old E1 set), might be missing here too — guard:
-        def cell(summ, key):
-            if key not in summ.index:
-                return "—", None, None, None
-            r = summ.loc[key]
-            return f"{fmt(r['mean'], 3 if 'pct' not in m and 'reversals' not in m else 1)} ± {fmt(r['se'], 3 if 'pct' not in m and 'reversals' not in m else 1)}", r["mean"], r["se"], int(r["n"])
-        sb, sb_m, sb_se, sb_n = cell(state_summ, "blind")
-        sl, sl_m, sl_se, sl_n = cell(state_summ, "labeled")
-        vf, vf_m, vf_se, vf_n = cell(vis_summ, "frozen-baseline")
-        vt, vt_m, vt_se, vt_n = cell(vis_summ, "finetune-baseline")
-        rows.append([label, sb, sl, vf, vt])
-        for cond_label, mean, se, n in [
-            ("state-blind", sb_m, sb_se, sb_n),
-            ("state-labeled", sl_m, sl_se, sl_n),
-            ("visual-frozen", vf_m, vf_se, vf_n),
-            ("visual-finetuned", vt_m, vt_se, vt_n),
-        ]:
+    md_rows = []
+    for metric, title, *_ in metrics_r4:
+        ms = summary_all[summary_all["metric"] == metric].set_index("condition")
+        cells = []
+        for cond in cond_order:
+            if cond not in ms.index:
+                cells.append("—")
+                long_rows.append({
+                    "figure": "result4", "metric": metric,
+                    "condition": cond.replace("\n", " "),
+                    "mean": None, "se": None, "n_seeds": None,
+                })
+                continue
+            r = ms.loc[cond]
+            digits = 1 if "pct" in metric else 3
+            cells.append(f"{fmt(r['mean'], digits)} ± {fmt(r['se'], digits)}")
             long_rows.append({
-                "figure": "result4", "metric": m, "condition": cond_label,
-                "mean": mean, "se": se, "n_seeds": n,
+                "figure": "result4", "metric": metric,
+                "condition": cond.replace("\n", " "),
+                "mean": float(r["mean"]), "se": float(r["se"]),
+                "n_seeds": int(r["n"]),
             })
+        md_rows.append([title] + cells)
 
     md = (
-        "# Result 4. Perception pushes control toward the reactive regime (gym-default, fixed physics)\n\n"
-        "State agents vs visual agents under fixed Lunar Lander physics. State sources: "
-        "`e1-blind-vs-labeled-gym-default-128`. Visual sources: "
-        "`matched-enc-all-6-conditions` (frozen-baseline = frozen encoder, "
-        "finetune-baseline = fine-tuned encoder, N=5).\n\n"
+        "# Result 4. With Physics Fixed, Perception Changes Control "
+        "(gym-default)\n\n"
+        "State agents vs visual matched-encoder agents under fixed Lunar "
+        "Lander physics. N=5 seeds per condition.\n\n"
+        f"State source: `e1-blind-vs-labeled-gym-default-128-{DATE_TAG}`.\n"
+        f"Visual source: `matched-enc-all-6-conditions-{DATE_TAG}/all-6/` "
+        "(only `frozen-baseline` and `finetune-baseline` — swap variants "
+        "Fr+Fr / Ft+Ft / Fr+Ft / Ft+Fr excluded).\n\n"
     )
-    md += md_table(["Metric"] + columns, rows)
-
+    md += md_table(["Metric"] + [c.replace("\n", " ") for c in cond_order],
+                   md_rows)
     save_numbers(
         fig_dir, pd.DataFrame(long_rows), md,
         {
-            "figure": "result4-table",
-            "title": "State vs visual gym-default comparison",
-            "state_source": str(state_inner / "metrics_by_variant.csv") if state_inner else "",
+            "figure": "result4-state-vs-visual",
+            "title": "With Physics Fixed, Perception Changes Control",
+            "state_source": str(state_csv),
             "visual_source": str(visual_csv),
-            "metrics": [m for m, _ in metrics_r4],
-            "conditions": columns,
+            "metrics": [m for m, *_ in metrics_r4],
+            "conditions": [c.replace("\n", " ") for c in cond_order],
+            "n_seeds_per_condition": 5,
         },
     )
-    print(f"  wrote: {fig_dir}/  (table only, no plot)")
+    print(f"  wrote: {fig_dir}/")
 
 
 # ====================================================================
@@ -1634,7 +1847,11 @@ def build_overlay_bd(out_root: Path, seed: int = 0):
     _run_overlay_bd(
         out_root, BD_SCENARIOS, "fig-overlay-state-vbd",
         title="State-vector trajectory overlay (V_BD)",
-        suptitle_map={("easy-ID", "median"): "Same Task, Different Controllers"},
+        suptitle_map={
+            ("easy-ID", "median"): "Same Task, Different Controllers",
+            ("easy-OOD-medium", "median"): "Medium-OOD Trajectories: Labeled vs Blind",
+            ("easy-OOD-medium", "extreme"): "Medium-OOD Trajectories: Labeled vs Blind",
+        },
         top_note=(
             "Top panel: 50 trajectories per condition on lunar lander backdrop, "
             "with reversal dots (yellow = main on/off; magenta = lateral L/R/none change). "
@@ -1735,7 +1952,7 @@ def build_e3_ood_behavioral_panel(out_root: Path):
     fig.suptitle(
         "Visual fusion gradient: behavioral panel under medium-OOD"
         "   (mean ± SE across N=3 seeds, dots = per-seed means)",
-        fontsize=12, fontweight="bold", y=1.0,
+        fontsize=SUPTITLE_FONTSIZE, fontweight="bold", y=1.0,
     )
     fig.tight_layout()
     save_figure(fig, fig_dir, "fig5-ood-behavioral-panel")
@@ -2215,14 +2432,14 @@ def build_fig_reversal_time(out_root: Path, seed: int = 0):
                             show_xlabel=True, show_legend=True,
                             ylabel_tag="full-variation easy-ID")
     for col, t in enumerate(kind_titles):
-        axes[col].set_title(t, fontsize=10, pad=10)
+        axes[col].set_title(t, pad=10)
     fig.suptitle(
         r"$\bf{Main\text{-}Thrust\ Correction\ Persists\ Through\ Descent}$" "\n"
         "\n"
         "Reversal rate over normalized trajectory time "
         "(full-variation easy-ID)"
         "\n ",
-        fontsize=14, linespacing=1.4,
+        fontsize=SUPTITLE_FONTSIZE, linespacing=SUPTITLE_LINESPACING,
     )
     fig.text(0.5, -0.02,
              "line = mean across N=10 seeds; "
@@ -2265,13 +2482,13 @@ def build_fig_reversal_time(out_root: Path, seed: int = 0):
         )
         if r == 0:
             for col, t in enumerate(kind_titles):
-                axes[r, col].set_title(t, fontsize=10)
+                axes[r, col].set_title(t)
     fig.suptitle(
         r"$\bf{Controller\ Timing\ Changes\ Under\ Shift}$" "\n"
         "\n"
         "Reversal rate over normalized trajectory time, ID vs OOD"
         "\n ",
-        fontsize=14, linespacing=1.4,
+        fontsize=SUPTITLE_FONTSIZE, linespacing=SUPTITLE_LINESPACING,
     )
     fig.text(0.5, -0.01,
              "line = mean across N=10 seeds; "

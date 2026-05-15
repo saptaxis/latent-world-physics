@@ -544,8 +544,7 @@ def variant_BD(blind_eps, labeled_eps, backdrop, out: Path, t_max: int,
         ax_bot.set_xlim(0, t_max + 25)
         ax_bot.set_xlabel("step")
         ax_bot.set_ylabel("episode (sorted by episode length)")
-        ax_bot.set_title(f"$\\bf{{per\\text{{-}}step\\ thrust\\ action}}$ "
-                         f"({n_rows} episodes)\n"
+        ax_bot.set_title(f"$\\bf{{per\\text{{-}}step\\ thrust\\ action}}$\n"
                          f"▶ green = landed, ▶ red = failed",
                          fontsize=10, pad=8, linespacing=1.4)
 
