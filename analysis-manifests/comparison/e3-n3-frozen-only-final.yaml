@@ -11,13 +11,13 @@ comparisons:
     configs:
       blind-frozen:
         seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/easy/matched-encoder/frozen-lowlr
-        seeds: [42, 123, 456]
+        seeds: [42, 123, 456, 789]
         trajectory_subdir: trajectories
       raw-frozen:
         seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/easy/matched-encoder/labeled-raw-frozen-lowlr
-        seeds: [42, 123, 456]
+        seeds: [42, 123, 456, 789]
         trajectory_subdir: trajectories
       branch-frozen:
         seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/visual_rl_agents/easy/matched-encoder/labeled-branch-frozen-lowlr
-        seeds: [42, 123, 456]
+        seeds: [42, 123, 456, 789]
         trajectory_subdir: trajectories
