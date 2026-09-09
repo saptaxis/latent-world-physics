@@ -1,0 +1,20 @@
+# Physics-only agents evaluated with wind [0,15] introduced, no turbulence.
+# Body fixed at gym defaults, gravity at full range (same as training).
+# Tests whether wind alone breaks the labeled controller.
+experiment: ood-physics-only-wind
+description: "Physics-only agents on wind-only OOD"
+output_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/analysis/cross-config/ood-physics-only-wind
+
+comparisons:
+  physics-only-wind-only:
+    condition: physics-only
+    profile: physics-only-wind-only
+    configs:
+      labeled:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/physics-only/labeled-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+        trajectory_subdir: trajectories-ood-wind
+      blind:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/physics-only/blind-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+        trajectory_subdir: trajectories-ood-wind

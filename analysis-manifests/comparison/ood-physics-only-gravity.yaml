@@ -1,0 +1,20 @@
+# Physics-only agents evaluated with gravity at full range, no wind/turbulence.
+# Effectively a training-distribution control (gravity range is unchanged,
+# TWR doesn't filter with fixed body). Confirms baseline performance.
+experiment: ood-physics-only-gravity
+description: "Physics-only agents on gravity-widened (training control)"
+output_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/analysis/cross-config/ood-physics-only-gravity
+
+comparisons:
+  physics-only-gravity-widened:
+    condition: physics-only
+    profile: physics-only-gravity-widened
+    configs:
+      labeled:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/physics-only/labeled-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+        trajectory_subdir: trajectories-ood-gravity
+      blind:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/physics-only/blind-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+        trajectory_subdir: trajectories-ood-gravity

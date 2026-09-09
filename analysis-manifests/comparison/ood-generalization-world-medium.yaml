@@ -1,0 +1,21 @@
+# OOD generalization: world-only shift to medium ranges.
+# Easy-trained full-variation agents evaluated with world params at medium
+# (wind [0,15], turbulence [0,2]) while body stays at easy (damping [2,5], TWR>=8).
+# Decomposes the full easy→medium OOD shift to isolate world uncertainty.
+experiment: ood-generalization-world-medium
+description: "Easy-trained agents evaluated on world-only OOD (medium world, easy body)"
+output_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/analysis/cross-config/ood-generalization-world-medium
+
+comparisons:
+  full-variation-easy-trained-on-world-medium:
+    condition: full-variation
+    profile: world-ood-medium
+    configs:
+      labeled:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/full-variation/labeled-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+        trajectory_subdir: trajectories-ood-world-medium
+      blind:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/full-variation/blind-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+        trajectory_subdir: trajectories-ood-world-medium

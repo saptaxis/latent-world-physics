@@ -1,0 +1,22 @@
+# OOD generalization: vehicle-only (body-only) trained agents on medium body ranges.
+# Easy-trained vehicle-only agents evaluated on vehicle-only-medium profile
+# (damping [0,3], TWR>=4, world still fixed at gym default).
+# Section 2 predicts a large blind/labeled gap here because body variation
+# opens the behavioral split during training.
+experiment: ood-vehicle-only-medium
+description: "Vehicle-only easy-trained agents evaluated on vehicle-only-medium (body OOD)"
+output_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/analysis/cross-config/ood-vehicle-only-medium
+
+comparisons:
+  vehicle-only-easy-trained-on-medium:
+    condition: vehicle-only
+    profile: vehicle-only-medium
+    configs:
+      labeled:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/vehicle-only/labeled-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+        trajectory_subdir: trajectories-ood-medium
+      blind:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/vehicle-only/blind-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+        trajectory_subdir: trajectories-ood-medium

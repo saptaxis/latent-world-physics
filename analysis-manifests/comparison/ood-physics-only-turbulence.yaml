@@ -1,0 +1,20 @@
+# Physics-only agents evaluated with turbulence [0,2] introduced, no wind.
+# Body fixed at gym defaults, gravity at full range (same as training).
+# Tests whether turbulence alone breaks the labeled controller.
+experiment: ood-physics-only-turbulence
+description: "Physics-only agents on turbulence-only OOD"
+output_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/analysis/cross-config/ood-physics-only-turbulence
+
+comparisons:
+  physics-only-turbulence-only:
+    condition: physics-only
+    profile: physics-only-turbulence-only
+    configs:
+      labeled:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/physics-only/labeled-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+        trajectory_subdir: trajectories-ood-turbulence
+      blind:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/physics-only/blind-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+        trajectory_subdir: trajectories-ood-turbulence

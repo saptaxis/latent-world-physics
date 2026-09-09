@@ -1,0 +1,22 @@
+# OOD generalization: physics-only (world-only) trained agents on medium world ranges.
+# Easy-trained physics-only agents evaluated on physics-only-medium profile
+# (wind [0,15], turbulence [0,2] introduced; body still fixed at gym default).
+# Section 2 predicts a small blind/labeled gap here because world variation
+# does not open a large behavioral split during training.
+experiment: ood-physics-only-medium
+description: "Physics-only easy-trained agents evaluated on physics-only-medium (world OOD)"
+output_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/analysis/cross-config/ood-physics-only-medium
+
+comparisons:
+  physics-only-easy-trained-on-medium:
+    condition: physics-only
+    profile: physics-only-medium
+    configs:
+      labeled:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/physics-only/labeled-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+        trajectory_subdir: trajectories-ood-medium
+      blind:
+        seed_base: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/rl_agents/parametric-vs-behavioral/physics-only/blind-ppo-easy-128-lowent
+        seeds: [42, 123, 456, 789, 1024, 2048, 4096, 8192, 16384, 32768]
+        trajectory_subdir: trajectories-ood-medium

@@ -119,6 +119,7 @@ DEFAULT_OUT = Path(
     "articles/01-what-do-agents-learn/figures"
 )
 DATE_TAG = "2026-05-14"
+E3_DATE_TAG = "2026-05-25"
 
 # Existing overlay artifacts to wrap
 OVERLAY_VD_SRC = Path("/home/vsr/vsr-tmp/e1-overlay/easy-ID_vD.png")
@@ -1279,10 +1280,10 @@ def build_fig5(out_root: Path):
     fig_dir = out_root / "fig5-fusion-gradient"
     NETS = DEFAULT_NETS
     id_csv = (NETS / "analysis/cross-config"
-              / f"e3-n3-all-6-final-{DATE_TAG}" / "all-6-final"
+              / f"e3-n3-all-6-final-{E3_DATE_TAG}" / "all-6-final"
               / "metrics_by_variant.csv")
     ood_csv = (NETS / "analysis/cross-config"
-               / f"e3-n3-all-6-final-ood-medium-{DATE_TAG}"
+               / f"e3-n3-all-6-final-ood-medium-{E3_DATE_TAG}"
                / "all-6-final-ood-medium" / "metrics_by_variant.csv")
 
     df_id_all  = load_metrics_csv(id_csv)
@@ -1429,7 +1430,7 @@ def build_fig5(out_root: Path):
         "\n"
         "Visual frozen agents trained on easy-variation physics, evaluated "
         "on easy (ID) and medium (OOD)\n"
-        "Blind / raw fusion / branch fusion (N=3 seeds per condition)"
+        "Blind / raw fusion / branch fusion (N=4 seeds per condition)"
         "\n ",
         fontsize=SUPTITLE_FONTSIZE, linespacing=SUPTITLE_LINESPACING,
     )
@@ -1439,9 +1440,9 @@ def build_fig5(out_root: Path):
         "# Fig 6. Stronger Fusion, Sharper Collapse "
         "(slug: fig5-fusion-gradient)\n\n"
         "Visual frozen agents (blind, raw-fusion, branch-fusion) on easy "
-        "(ID) and medium-OOD. N=3 seeds per condition.\n\n"
-        f"Sources: ID `e3-n3-all-6-final-{DATE_TAG}/all-6-final`; "
-        f"OOD `e3-n3-all-6-final-ood-medium-{DATE_TAG}/all-6-final-ood-medium`. "
+        "(ID) and medium-OOD. N=4 seeds per condition.\n\n"
+        f"Sources: ID `e3-n3-all-6-final-{E3_DATE_TAG}/all-6-final`; "
+        f"OOD `e3-n3-all-6-final-ood-medium-{E3_DATE_TAG}/all-6-final-ood-medium`. "
         "Filtered to `-frozen` rows. Fine-tuned and peak-checkpoint variants "
         "excluded per writing brief.\n\n"
     )
@@ -1454,7 +1455,7 @@ def build_fig5(out_root: Path):
             "title": "Stronger Fusion, Sharper Collapse",
             "sources": {"id_csv": str(id_csv), "ood_csv": str(ood_csv)},
             "conditions": conditions,
-            "n_seeds_per_variant": 3,
+            "n_seeds_per_variant": 4,
             "metrics": ["landed_pct", "crashed_pct",
                         "side_thrust_reversals_per_step",
                         "thrust_autocorr_lag1"],
@@ -2653,6 +2654,198 @@ def build_overlay_corrupt(out_root: Path, seed: int = 0):
 
 
 # ====================================================================
+# Fig OOD Transfer Decomposition (Section 3)
+# ====================================================================
+
+
+def build_ood_transfer_decomposition(out_root: Path):
+    """Section 3: "When the Gap Predicts Transfer, and When It Doesn't".
+
+    Two-panel figure:
+      Panel A: matched-axis OOD (vehicle-only and physics-only agents)
+      Panel B: world-shift decomposition (physics-only agents on
+               gravity / wind / turbulence / combined)
+
+    Each panel shows landing % with per-seed dots and mean ± SE,
+    blind vs labeled side by side.
+    """
+    fig_dir = out_root / "fig-ood-transfer-decomposition"
+    NETS = DEFAULT_NETS
+    cc = NETS / "analysis" / "cross-config"
+
+    # --- Panel A data: matched-axis OOD ---
+    vehicle_csv = (cc / "ood-vehicle-only-medium"
+                   / "vehicle-only-easy-trained-on-medium"
+                   / "metrics_by_variant.csv")
+    physics_csv = (cc / "ood-physics-only-medium"
+                   / "physics-only-easy-trained-on-medium"
+                   / "metrics_by_variant.csv")
+
+    # --- Panel B data: world-shift decomposition ---
+    gravity_csv = (cc / "ood-physics-only-gravity"
+                   / "physics-only-gravity-widened"
+                   / "metrics_by_variant.csv")
+    wind_csv = (cc / "ood-physics-only-wind"
+                / "physics-only-wind-only"
+                / "metrics_by_variant.csv")
+    turb_csv = (cc / "ood-physics-only-turbulence"
+                / "physics-only-turbulence-only"
+                / "metrics_by_variant.csv")
+
+    all_csvs = {
+        "vehicle": vehicle_csv, "physics": physics_csv,
+        "gravity": gravity_csv, "wind": wind_csv,
+        "turbulence": turb_csv,
+    }
+    for name, p in all_csvs.items():
+        if not p.exists():
+            print(f"  ABORT: {name} CSV missing: {p}")
+            return
+
+    # Load all
+    dfs = {name: load_metrics_csv(p) for name, p in all_csvs.items()}
+
+    metric = "landed_pct"
+    variants = ["blind", "labeled"]
+    color_map = {"blind": COLORS["blind"], "labeled": COLORS["labeled"]}
+
+    def _grouped_bars(ax, group_names, group_dfs, group_labels):
+        """Draw grouped blind/labeled bars for multiple conditions."""
+        n_groups = len(group_names)
+        bar_w = 0.28
+        gap = 0.15
+        group_w = 2 * bar_w + gap
+
+        for gi, (gname, gdf, glabel) in enumerate(
+                zip(group_names, group_dfs, group_labels)):
+            x_center = gi * (group_w + 0.35)
+            for vi, var in enumerate(variants):
+                x = x_center + (vi - 0.5) * (bar_w + gap / 2)
+                ps = per_seed_means(gdf, metric)
+                ps = ps[ps["variant"] == var]
+                summ = variant_summary(gdf, metric)
+                summ = summ[summ["variant"] == var]
+                if summ.empty:
+                    continue
+                m = summ["mean"].iloc[0]
+                se = summ["se"].iloc[0]
+                c = color_map[var]
+                ax.bar(x, m, bar_w, yerr=se, capsize=3, color=c,
+                       alpha=0.85, edgecolor="black", linewidth=0.5)
+                vals = ps[metric].values
+                jitter = np.random.RandomState(
+                    hash((gname, var)) & 0xFFFF).uniform(
+                    -0.06, 0.06, size=len(vals))
+                ax.scatter(np.full_like(vals, x, dtype=float) + jitter,
+                           vals, s=16, color="white", edgecolor=c,
+                           linewidth=0.7, zorder=3, alpha=0.95)
+
+        xs = [gi * (group_w + 0.35) for gi in range(n_groups)]
+        ax.set_xticks(xs)
+        ax.set_xticklabels(group_labels, fontsize=9)
+        ax.set_xlim(xs[0] - 0.5, xs[-1] + 0.5)
+
+    def _make_panel(group_names, group_dfs, group_labels, subtitle,
+                    slug, figsize):
+        from matplotlib.patches import Patch
+        fig, ax = plt.subplots(1, 1, figsize=figsize, dpi=DPI,
+                               constrained_layout=True)
+        _grouped_bars(ax, group_names, group_dfs, group_labels)
+        ax.set_ylim(0, 108)
+        ax.set_ylabel("Landing rate (%)")
+        ax.yaxis.grid(True, alpha=0.25, linestyle="-", linewidth=0.5)
+        ax.set_axisbelow(True)
+        legend_elements = [
+            Patch(facecolor=COLORS["blind"], edgecolor="black",
+                  linewidth=0.5, label="Blind"),
+            Patch(facecolor=COLORS["labeled"], edgecolor="black",
+                  linewidth=0.5, label="Labeled"),
+        ]
+        ax.legend(handles=legend_elements, loc="upper right",
+                  framealpha=0.9, fontsize=10)
+        fig.suptitle(
+            r"$\bf{When\ the\ Gap\ Predicts\ Transfer}$" "\n"
+            "\n" + subtitle + "\n ",
+            fontsize=SUPTITLE_FONTSIZE, linespacing=SUPTITLE_LINESPACING,
+        )
+        fig.text(0.5, -0.01,
+                 "bars = mean ± SE across N=10 seeds; dots = per-seed means",
+                 ha="center", va="top", fontsize=9, color="#555")
+        save_figure(fig, fig_dir, slug)
+
+    # --- Figure A: matched-axis OOD ---
+    _make_panel(
+        ["vehicle", "physics"],
+        [dfs["vehicle"], dfs["physics"]],
+        ["Body-only\nOOD", "World-only\nOOD"],
+        "Matched-axis OOD\n"
+        "Body-only vs world-only trained agents on their matched medium shift",
+        "fig-ood-transfer-a",
+        (6.5, 5.0),
+    )
+
+    # --- Figure B: world-shift decomposition ---
+    _make_panel(
+        ["gravity", "turbulence", "wind", "physics"],
+        [dfs["gravity"], dfs["turbulence"], dfs["wind"], dfs["physics"]],
+        ["Gravity\n(steady)", "Turbulence\n(time-varying)",
+         "Wind\n(time-varying)", "Combined\n(medium)"],
+        "World-shift decomposition\n"
+        "World-only trained agents evaluated by parameter type",
+        "fig-ood-transfer-b",
+        (11.0, 5.0),
+    )
+
+    # --- Numbers ---
+    long_rows = []
+    md_rows = []
+
+    panel_specs = [
+        ("Panel A", "Body-only OOD", dfs["vehicle"]),
+        ("Panel A", "World-only OOD", dfs["physics"]),
+        ("Panel B", "Gravity (steady)", dfs["gravity"]),
+        ("Panel B", "Turbulence (time-varying)", dfs["turbulence"]),
+        ("Panel B", "Wind (time-varying)", dfs["wind"]),
+        ("Panel B", "Combined (medium)", dfs["physics"]),
+    ]
+    for panel, label, df in panel_specs:
+        summ = variant_summary(df, metric)
+        for var in variants:
+            row = summ[summ["variant"] == var]
+            if row.empty:
+                continue
+            m, se, n = row["mean"].iloc[0], row["se"].iloc[0], int(row["n"].iloc[0])
+            long_rows.append({
+                "panel": panel, "condition": label, "variant": var,
+                "mean": m, "se": se, "n_seeds": n,
+            })
+            md_rows.append([panel, label, var.capitalize(),
+                            f"{m:.1f} ± {se:.1f}"])
+
+    md = (
+        "# Section 3. When the Gap Predicts Transfer "
+        "(slug: fig-ood-transfer-decomposition)\n\n"
+        "Panel A: matched-axis OOD for body-only and world-only "
+        "trained agents. Panel B: world-shift decomposition for "
+        "world-only trained agents. N=10 seeds per condition.\n\n"
+    )
+    md += md_table(["Panel", "Condition", "Variant", "Landing % (mean ± SE)"],
+                   md_rows)
+
+    save_numbers(
+        fig_dir, pd.DataFrame(long_rows), md,
+        {
+            "figure": "fig-ood-transfer-decomposition",
+            "title": "When the Gap Predicts Transfer",
+            "sources": {k: str(v) for k, v in all_csvs.items()},
+            "metric": metric,
+            "n_seeds_per_variant": 10,
+        },
+    )
+    print(f"  wrote: {fig_dir}/")
+
+
+# ====================================================================
 # CLI
 # ====================================================================
 
@@ -2672,6 +2865,7 @@ BUILDERS = {
     "fig_reversal_time": build_fig_reversal_time,
     "overlay_bd_e3": build_overlay_bd_e3,
     "fig5_ood_panel": build_e3_ood_behavioral_panel,
+    "ood_transfer": build_ood_transfer_decomposition,
 }
 
 
