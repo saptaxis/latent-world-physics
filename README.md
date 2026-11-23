@@ -6,6 +6,18 @@ Tools for studying what neural networks learn about physics: world model trainin
 
 Built on [parametric-lunar-lander](https://github.com/saptaxis/parametric-lunar-lander), a Gymnasium environment with 7 configurable physics parameters.
 
+## Findings so far
+
+A write-up is in preparation. In brief, from the RL agent experiments:
+
+PPO agents with the same architecture, reward and training distribution learn different controllers depending on how physics information reaches them. Agents given the episode's physics parameters ("labeled") learn smooth control with persistent thrust. Agents without them ("blind") learn correction-heavy control. The split appears only when the labels carry episode-specific information, and it opens mainly when the lander's own body parameters vary rather than the world's.
+
+Under out-of-distribution shift, the blind controller often transfers better, but not always. It holds up much better against time-varying disturbances such as wind and turbulence, and gains nothing on a matched shift in body parameters. When the labeled agents' physics inputs are corrupted, they fail while keeping their smooth style, rather than falling back to correction.
+
+Perception is also a channel. Agents that see the world through a learned visual encoder are more reactive even when physics is fixed. Adding physics back to them restores smoother in-distribution control but makes them fail harder out of distribution.
+
+The evidence is behavioural and input-level causal: it shows that the information channel shapes the controller, not which internal variables or circuits the policies use.
+
 ## What's in the repo
 
 | Package | What it does |
